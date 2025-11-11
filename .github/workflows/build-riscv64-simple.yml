@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build on RISCV64
-        uses: uraimo/run-on-arch-action@v2.8.1
+        uses: uraimo/run-on-arch-action@v3
         with:
           arch: riscv64
           distro: ubuntu24.04
