@@ -1,15 +1,18 @@
 name: Build for RISCV64
 
+# 注意：此 workflow 使用交叉编译方式，由于无法安装 RISCV64 系统库，建议使用 build-riscv64-simple.yml
+# 此 workflow 已禁用，如需启用请取消下面的注释
+
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  # push:
+  #   branches: [ main, master ]
+  # pull_request:
+  #   branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build-riscv64:
-    name: Build Tauri App for RISCV64
+    name: Build Tauri App for RISCV64 (Cross-compile - Disabled)
     runs-on: ubuntu-latest
     
     steps:
