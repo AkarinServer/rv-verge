@@ -1,0 +1,114 @@
+name: Build RISCV64 (Self-Hosted Runner)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-riscv64-selfhosted:
+    name: Build for RISCV64 Linux (Self-Hosted)
+    runs-on: [self-hosted, Linux, RISCV64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          echo "Running on self-hosted RISCV64 runner"
+          uname -a
+          cat /etc/os-release || true
+          echo "Current directory: $(pwd)"
+          ls -la
+
+      - name: Update system
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            pkg-config \
+            ca-certificates \
+            gnupg
+
+      - name: Install Node.js
+        run: |
+          # 检查是否已安装 Node.js
+          if command -v node &> /dev/null; then
+            echo "Node.js already installed: $(node --version)"
+            echo "npm version: $(npm --version)"
+          else
+            echo "Installing Node.js 24.11.0 from GitHub Releases..."
+            NODE_VERSION="24.11.0"
+            NODE_ARCH="riscv64"
+            NODE_DIST="node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+            NODE_URL="https://github.com/gounthar/unofficial-builds/releases/download/v${NODE_VERSION}/${NODE_DIST}.tar.xz"
+            
+            cd /tmp
+            wget -q "$NODE_URL" -O "${NODE_DIST}.tar.xz" || {
+              echo "错误: 无法下载 Node.js ${NODE_VERSION} for RISCV64 from GitHub Releases"
+              exit 1
+            }
+            
+            tar -xf "${NODE_DIST}.tar.xz"
+            sudo mv "${NODE_DIST}" /opt/nodejs
+            export PATH="/opt/nodejs/bin:$PATH"
+            sudo ln -sf /opt/nodejs/bin/node /usr/local/bin/node
+            sudo ln -sf /opt/nodejs/bin/npm /usr/local/bin/npm
+            sudo ln -sf /opt/nodejs/bin/npx /usr/local/bin/npx
+            
+            echo "Node.js installed: $(node --version)"
+            echo "npm version: $(npm --version)"
+          fi
+
+      - name: Install Rust
+        run: |
+          if command -v rustc &> /dev/null; then
+            echo "Rust already installed: $(rustc --version)"
+          else
+            echo "Installing Rust..."
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
+            rustup target add riscv64gc-unknown-linux-gnu
+            echo "Rust installed: $(rustc --version)"
+          fi
+
+      - name: Install project dependencies
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          
+          if [ -f package-lock.json ]; then
+            echo "找到 package-lock.json，使用 npm ci"
+            npm ci
+          else
+            echo "警告: package-lock.json 不存在，使用 npm install"
+            npm install
+          fi
+
+      - name: Build frontend
+        run: |
+          npm run build
+
+      - name: Build Tauri application
+        run: |
+          npm run tauri build -- --target riscv64gc-unknown-linux-gnu
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-riscv64-selfhosted
+          path: |
+            src-tauri/target/riscv64gc-unknown-linux-gnu/release/tauri-riscv64-test
+            src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/
+
