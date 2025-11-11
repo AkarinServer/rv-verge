@@ -57,13 +57,11 @@ gh run view <run-id> --repo AkarinServer/tauri-test --log
 
 ## 🎯 预期结果
 
-### macOS ARM64
-- ✅ 应该成功构建
-- 📦 生成 `.app` 和 `.dmg` 文件
-
-### RISCV64 Linux
+### RISCV64 Linux（唯一目标）
 - ⚠️ 可能因系统库问题失败
 - 如果成功，生成可执行文件和 AppImage
+
+**注意**: macOS 构建已从 CI 中移除，目前只构建 RISCV64 版本
 
 ## 📝 下一步
 
