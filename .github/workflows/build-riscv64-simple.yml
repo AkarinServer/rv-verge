@@ -20,7 +20,7 @@ jobs:
         uses: uraimo/run-on-arch-action@v2.8.1
         with:
           arch: riscv64
-          distro: ubuntu22.04
+          distro: ubuntu24.04
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           run: |
             # 更新系统（在容器中通常以 root 运行，不需要 sudo）
