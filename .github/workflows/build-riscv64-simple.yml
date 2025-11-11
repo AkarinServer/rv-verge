@@ -23,11 +23,11 @@ jobs:
           distro: ubuntu22.04
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           run: |
-            # 更新系统
-            sudo apt-get update
+            # 更新系统（在容器中通常以 root 运行，不需要 sudo）
+            apt-get update
             
             # 安装系统依赖
-            sudo apt-get install -y \
+            apt-get install -y \
               libwebkit2gtk-4.1-dev \
               build-essential \
               curl \
@@ -37,11 +37,13 @@ jobs:
               libssl-dev \
               libayatana-appindicator3-dev \
               librsvg2-dev \
-              pkg-config
+              pkg-config \
+              ca-certificates \
+              gnupg
             
             # 安装 Node.js
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            apt-get install -y nodejs
             
             # 安装 Rust
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
