@@ -8,7 +8,7 @@
 
 ### ✅ 1. 智能启动脚本（自动检测硬件加速）
 
-**文件**: `/home/ubuntu/start-tauri-smart.sh`
+**文件**: `/home/ubuntu/start-tauri-smart.sh` (also available in project root as `start-tauri-smart.sh`)
 
 **功能**:
 - 自动检测硬件加速是否可用
@@ -26,6 +26,7 @@
 ~/start-tauri-smart.sh
 
 # 脚本会自动检测并选择最佳渲染模式
+# 所有输出信息为英文（兼容无中文字体的系统）
 ```
 
 **优势**:
