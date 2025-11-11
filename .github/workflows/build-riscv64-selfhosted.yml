@@ -13,16 +13,38 @@ jobs:
     runs-on: [self-hosted, Linux, RISCV64]
     
     steps:
+      - name: Setup system libraries
+        run: |
+          echo "Installing required system libraries..."
+          sudo apt-get update -qq
+          sudo apt-get install -y libatomic1 || true
+          
+      - name: Check system Node.js
+        run: |
+          echo "Checking for system Node.js..."
+          if command -v node &> /dev/null; then
+            echo "System Node.js found: $(node --version)"
+            echo "Node.js path: $(which node)"
+            node --version
+          else
+            echo "No system Node.js found"
+          fi
+          
+          # Check if runner's Node.js works
+          if [ -f /home/runner/externals/node20/bin/node ]; then
+            echo "Runner Node.js path: /home/runner/externals/node20/bin/node"
+            /home/runner/externals/node20/bin/node --version || echo "Runner Node.js failed"
+          fi
+          
+          # Set PATH to prefer system Node.js if available
+          if command -v node &> /dev/null; then
+            echo "Using system Node.js"
+            echo "NODE_PATH=$(which node)" >> $GITHUB_ENV
+            echo "PATH=$(dirname $(which node)):$PATH" >> $GITHUB_ENV
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup environment
-        run: |
-          echo "Running on self-hosted RISCV64 runner"
-          uname -a
-          cat /etc/os-release || true
-          echo "Current directory: $(pwd)"
-          ls -la
 
       - name: Update system
         run: |
