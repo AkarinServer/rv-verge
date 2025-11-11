@@ -26,7 +26,15 @@ jobs:
             --volume "${{ github.workspace }}:/workspace"
           run: |
             # 更新系统（在容器中通常以 root 运行，不需要 sudo）
-            apt-get update
+            # 添加重试机制，处理 Ubuntu 镜像同步问题
+            apt-get update || {
+              echo "警告: apt-get update 失败，等待 5 秒后重试..."
+              sleep 5
+              apt-get update || {
+                echo "警告: 第二次重试失败，使用 --fix-missing 继续"
+                apt-get update --fix-missing || true
+              }
+            }
             
             # 安装系统依赖
             apt-get install -y \
