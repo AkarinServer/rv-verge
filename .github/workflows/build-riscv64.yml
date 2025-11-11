@@ -39,21 +39,14 @@ jobs:
             gcc-riscv64-linux-gnu \
             g++-riscv64-linux-gnu \
             libc6-dev-riscv64-cross \
-            qemu-user-static \
-            qemu-user-binfmt
+            qemu-user-static
 
       - name: Install system dependencies (for RISCV64)
         run: |
-          # 注意：这些依赖项需要在 RISCV64 环境中安装
-          # 由于我们在 x86_64 上使用 QEMU，我们需要在 chroot 或容器中安装
-          # 这里我们尝试使用交叉编译的方式
-          sudo apt-get install -y \
-            pkg-config \
-            libwebkit2gtk-4.1-dev:riscv64 \
-            libgtk-3-dev:riscv64 \
-            librsvg2-dev:riscv64 \
-            libayatana-appindicator3-dev:riscv64 \
-            || echo "某些 RISCV64 包可能不可用，需要手动处理"
+          # 注意：交叉编译方式可能无法安装 RISCV64 系统库
+          # 这些库需要在 RISCV64 环境中才能安装
+          # 此 workflow 主要用于测试，实际构建建议使用 build-riscv64-simple.yml
+          echo "跳过系统依赖安装（交叉编译限制）"
 
       - name: Configure Cargo for cross-compilation
         run: |
