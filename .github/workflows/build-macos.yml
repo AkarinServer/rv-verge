@@ -38,7 +38,8 @@ jobs:
           fi
 
       - name: Run prebuild
-        run: npm run prebuild || echo "Warning: prebuild failed, continuing..."
+        run: |
+          npm run prebuild || echo "Warning: prebuild failed, continuing..."
 
       - name: Build frontend
         run: npm run web:build

@@ -1,4 +1,4 @@
-name: Build RV Verge (RISC-V)
+name: Build RISCV64 (Self-Hosted Runner)
 
 on:
   push:
@@ -125,7 +125,8 @@ jobs:
           fi
 
       - name: Run prebuild
-        run: npm run prebuild || echo "Warning: prebuild failed, continuing..."
+        run: |
+          npm run prebuild || echo "Warning: prebuild failed, continuing..."
 
       - name: Build frontend
         run: npm run web:build
