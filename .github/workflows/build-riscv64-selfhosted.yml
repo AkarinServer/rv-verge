@@ -157,8 +157,16 @@ jobs:
 
       - name: Build frontend
         env:
-          NODE_OPTIONS: "--max-old-space-size=2048 --max-opt=2"
-        run: npm run web:build
+          NODE_OPTIONS: "--max-old-space-size=2048"
+        run: |
+          # Use node with V8 options to disable TurboFan but keep WebAssembly
+          # --max-opt=2 means use Maglev compiler (tier 2), skip TurboFan (tier 3)
+          # This should avoid TurboFan crashes while keeping WebAssembly support
+          echo "Building frontend with --max-opt=2 (Maglev compiler, skip TurboFan)..."
+          # Run TypeScript check first
+          node --max-opt=2 node_modules/.bin/tsc --noEmit
+          # Then build with Vite
+          node --max-opt=2 node_modules/.bin/vite build
 
       - name: Build Tauri application
         run: npm run tauri build -- --target riscv64gc-unknown-linux-gnu
