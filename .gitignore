@@ -35,7 +35,7 @@ src-tauri/target
 src-tauri/Cargo.lock
 
 # Reference project (clash-verge-rev) - do not commit
-clash-verge-rev/
+clash-verge-rev
 
 # Cache files
 .eslintcache

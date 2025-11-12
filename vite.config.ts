@@ -21,8 +21,6 @@ export default defineConfig({
       renderLegacyChunks: false,
       modernPolyfills: true,
       additionalModernPolyfills: [
-        "core-js/modules/es.object.has-own.js",
-        "core-js/modules/web.structured-clone.js",
         path.resolve("./src/polyfills/matchMedia.js"),
         path.resolve("./src/polyfills/WeakRef.js"),
         path.resolve("./src/polyfills/RegExp.js"),
@@ -32,24 +30,12 @@ export default defineConfig({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
-    minify: "terser",
+    minify: "esbuild",
     chunkSizeWarningLimit: 2000,
     reportCompressedSize: false,
     sourcemap: false,
     cssCodeSplit: true,
     cssMinify: true,
-    terserOptions: {
-      compress: {
-        drop_console: false,
-        drop_debugger: true,
-        pure_funcs: ["console.debug", "console.trace"],
-        dead_code: true,
-        unused: true,
-      },
-      mangle: {
-        safari10: true,
-      },
-    },
     rollupOptions: {
       treeshake: {
         preset: "recommended",
