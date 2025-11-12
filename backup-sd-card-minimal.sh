@@ -3,7 +3,7 @@
 # Creates an image containing only valid data (used space) and partition table
 # Usage: sudo ./backup-sd-card-minimal.sh [device] [output-dir]
 
-set -e
+# Don't use set -e, we want to handle errors explicitly and provide clear messages
 
 # Configuration
 SD_CARD_DEVICE="${1:-/dev/rdisk7}"
@@ -41,7 +41,17 @@ log_step() {
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
-    log_error "Please run as root or with sudo"
+    log_error "This script requires root privileges"
+    log_error ""
+    log_error "Please run with sudo:"
+    log_error "  sudo $0 $*"
+    exit 1
+fi
+
+# Verify we actually have root privileges
+if ! diskutil list >/dev/null 2>&1; then
+    log_error "Cannot access diskutil - root privileges may not be working correctly"
+    log_error "Please ensure you're running with sudo"
     exit 1
 fi
 

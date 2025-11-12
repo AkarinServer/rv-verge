@@ -4,7 +4,7 @@
 # Adjusts partition sizes to fit the target SD card
 # Usage: sudo ./restore-sd-card.sh <image-file> <target-device>
 
-set -e
+# Don't use set -e, we want to handle errors explicitly and provide clear messages
 
 # Configuration
 IMAGE_FILE="${1}"
@@ -50,7 +50,17 @@ trap cleanup EXIT
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
-    log_error "Please run as root or with sudo"
+    log_error "This script requires root privileges"
+    log_error ""
+    log_error "Please run with sudo:"
+    log_error "  sudo $0 $*"
+    exit 1
+fi
+
+# Verify we actually have root privileges
+if ! diskutil list >/dev/null 2>&1; then
+    log_error "Cannot access diskutil - root privileges may not be working correctly"
+    log_error "Please ensure you're running with sudo"
     exit 1
 fi
 
@@ -253,15 +263,60 @@ DURATION_MIN=$((DURATION / 60))
 DURATION_SEC=$((DURATION % 60))
 log_info "Duration: ${DURATION_MIN}m ${DURATION_SEC}s"
 
-# Step 9: Read partition table from written image
-log_step "Step 9: Reading partition table from target device..."
-sleep 2  # Wait for device to be ready
+# Step 9: Read partition table - try from device first, fallback to image file
+log_step "Step 9: Reading partition table..."
+sleep 3  # Wait for device to be ready
 
+# First, try to unmount the device in case it was auto-mounted
+diskutil unmountDisk "$TARGET_DISK" 2>/dev/null || true
+sleep 2
+
+# Try to read from device first
+log_info "Attempting to read partition table from device $TARGET_DISK..."
 GPT_OUTPUT=$(gpt show "$TARGET_DISK" 2>&1)
-if [ $? -ne 0 ]; then
-    log_error "Failed to read partition table from target device"
-    log_error "Output: $GPT_OUTPUT"
-    exit 1
+GPT_EXIT_CODE=$?
+
+# If failed, try reading from the image file instead
+if [ $GPT_EXIT_CODE -ne 0 ]; then
+    log_warn "Cannot read partition table from device (this is common after writing)"
+    log_info "Attempting to read partition table from image file instead..."
+    
+    # Try to read from the uncompressed image file
+    if [ -f "$UNCOMPRESSED_IMAGE" ]; then
+        # Create a loop device or use gpt show on the file directly
+        # On macOS, we can use hdiutil to attach the image, or read directly
+        # For now, let's try using the partition info file we already have
+        log_info "Using partition information from .partitions file to rebuild partition table"
+        
+        if [ -f "$PARTITION_INFO_FILE" ] && [ -n "$MAIN_PARTITION_INDEX" ]; then
+            log_info "Partition info file found, will rebuild partition table from it"
+            # We'll skip the GPT_OUTPUT parsing and go directly to rebuilding
+            USE_PARTITION_INFO=true
+        else
+            log_error "Cannot read partition table from device and no partition info available"
+            log_error "Exit code: $GPT_EXIT_CODE"
+            log_error ""
+            if [ -n "$GPT_OUTPUT" ]; then
+                log_error "Error output:"
+                echo "$GPT_OUTPUT" | while IFS= read -r line; do
+                    log_error "  $line"
+                done
+            fi
+            log_error ""
+            log_error "Script stopped due to error. The partition table needs to be rebuilt manually."
+            exit 1
+        fi
+    else
+        log_error "Cannot read partition table and image file not available"
+        log_error "Exit code: $GPT_EXIT_CODE"
+        if [ -n "$GPT_OUTPUT" ]; then
+            log_error "Error: $GPT_OUTPUT"
+        fi
+        exit 1
+    fi
+else
+    USE_PARTITION_INFO=false
+    log_info "Successfully read partition table from device"
 fi
 
 # Step 10: Calculate new partition sizes
@@ -283,43 +338,112 @@ declare -a PARTITION_STARTS
 declare -a PARTITION_SIZES
 declare -a PARTITION_TYPES
 declare -a PARTITION_INDICES
-declare -a PARTITION_UUIDS
+declare -a PARTITION_TYPE_GUIDS
 TOTAL_FIXED_SIZE=0
 MAIN_PARTITION_NEW_SIZE=0
 MAIN_PARTITION_START=0
 
-PARTITION_INDEX=0
-while IFS= read -r line; do
-    if [[ $line =~ ^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]+GPT[[:space:]]+part ]]; then
-        START_SECTOR=$(echo "$line" | awk '{print $1}')
-        SIZE_SECTORS=$(echo "$line" | awk '{print $2}')
-        INDEX=$(echo "$line" | awk '{print $3}')
-        PARTITION_TYPE=$(echo "$line" | awk '{for(i=5;i<=NF;i++) printf "%s ", $i; print ""}' | xargs)
+if [ "$USE_PARTITION_INFO" = true ]; then
+    # Use partition info from .partitions file
+    log_info "Rebuilding partition table from partition info file..."
+    
+    # Read partition info from the file
+    if [ -f "$PARTITION_INFO_FILE" ]; then
+        # Source the partition info file to get partition details
+        source "$PARTITION_INFO_FILE"
         
-        # Extract UUID from partition type
-        UUID=$(echo "$PARTITION_TYPE" | grep -oE "[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}" | head -1)
+        # Build partition arrays from the info file
+        # Partition indices may not be sequential, so we need to find all PARTITION_*_START variables
+        PARTITION_INDEX=0
         
-        if [ -n "$START_SECTOR" ] && [ -n "$SIZE_SECTORS" ] && [ "$START_SECTOR" != "0" ]; then
-            PARTITION_STARTS[$PARTITION_INDEX]=$START_SECTOR
-            PARTITION_SIZES[$PARTITION_INDEX]=$SIZE_SECTORS
-            PARTITION_TYPES[$PARTITION_INDEX]=$PARTITION_TYPE
-            PARTITION_INDICES[$PARTITION_INDEX]=$INDEX
-            PARTITION_UUIDS[$PARTITION_INDEX]=$UUID
+        # Extract all partition indices from the sourced variables
+        for var_name in $(set | grep -E "^PARTITION_[0-9]+_START=" | cut -d= -f1); do
+            # Extract partition number from variable name (e.g., PARTITION_13_START -> 13)
+            i=$(echo "$var_name" | sed 's/PARTITION_\([0-9]*\)_START/\1/')
             
-            log_info "Found partition $INDEX: start=$START_SECTOR, size=$SIZE_SECTORS sectors"
+            START_VAR="PARTITION_${i}_START"
+            SIZE_VAR="PARTITION_${i}_SIZE"
+            TYPE_VAR="PARTITION_${i}_TYPE"
             
-            # If this is not the main partition, keep original size
-            if [ "$INDEX" != "$MAIN_PARTITION_INDEX" ]; then
-                TOTAL_FIXED_SIZE=$((TOTAL_FIXED_SIZE + SIZE_SECTORS))
-            else
-                # This is the main partition
-                MAIN_PARTITION_START=$START_SECTOR
+            START_SECTOR=${!START_VAR}
+            SIZE_SECTORS=${!SIZE_VAR}
+            PARTITION_TYPE_STR=${!TYPE_VAR}
+            
+            if [ -n "$START_SECTOR" ] && [ -n "$SIZE_SECTORS" ] && [ "$START_SECTOR" != "0" ]; then
+                # Extract type GUID from partition type string
+                TYPE_GUID=$(echo "$PARTITION_TYPE_STR" | grep -oE "[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}" | head -1)
+                
+                PARTITION_STARTS[$PARTITION_INDEX]=$START_SECTOR
+                PARTITION_SIZES[$PARTITION_INDEX]=$SIZE_SECTORS
+                PARTITION_TYPES[$PARTITION_INDEX]=$PARTITION_TYPE_STR
+                PARTITION_INDICES[$PARTITION_INDEX]=$i
+                PARTITION_TYPE_GUIDS[$PARTITION_INDEX]=$TYPE_GUID
+                
+                if [ -n "$TYPE_GUID" ]; then
+                    log_info "Partition $i from info file: start=$START_SECTOR, size=$SIZE_SECTORS sectors, type=$TYPE_GUID"
+                else
+                    log_warn "Partition $i: could not extract type GUID from: $PARTITION_TYPE_STR"
+                fi
+                
+                if [ "$i" != "$MAIN_PARTITION_INDEX" ]; then
+                    TOTAL_FIXED_SIZE=$((TOTAL_FIXED_SIZE + SIZE_SECTORS))
+                else
+                    MAIN_PARTITION_START=$START_SECTOR
+                fi
+                
+                PARTITION_INDEX=$((PARTITION_INDEX + 1))
             fi
-            
-            PARTITION_INDEX=$((PARTITION_INDEX + 1))
+        done
+        
+        if [ $PARTITION_INDEX -eq 0 ]; then
+            log_error "No partitions found in partition info file"
+            exit 1
         fi
+    else
+        log_error "Partition info file not found: $PARTITION_INFO_FILE"
+        exit 1
     fi
-done <<< "$GPT_OUTPUT"
+else
+    # Parse from GPT_OUTPUT (device read was successful)
+    PARTITION_INDEX=0
+    while IFS= read -r line; do
+        if [[ $line =~ ^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]+GPT[[:space:]]+part ]]; then
+            START_SECTOR=$(echo "$line" | awk '{print $1}')
+            SIZE_SECTORS=$(echo "$line" | awk '{print $2}')
+            INDEX=$(echo "$line" | awk '{print $3}')
+            PARTITION_TYPE=$(echo "$line" | awk '{for(i=5;i<=NF;i++) printf "%s ", $i; print ""}' | xargs)
+            
+            # Extract partition type GUID (not UUID) - this is what gpt add -t expects
+            # Format: "GPT part - C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
+            TYPE_GUID=$(echo "$PARTITION_TYPE" | grep -oE "[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}" | head -1)
+            
+            if [ -n "$START_SECTOR" ] && [ -n "$SIZE_SECTORS" ] && [ "$START_SECTOR" != "0" ]; then
+                PARTITION_STARTS[$PARTITION_INDEX]=$START_SECTOR
+                PARTITION_SIZES[$PARTITION_INDEX]=$SIZE_SECTORS
+                PARTITION_TYPES[$PARTITION_INDEX]=$PARTITION_TYPE
+                PARTITION_INDICES[$PARTITION_INDEX]=$INDEX
+                PARTITION_TYPE_GUIDS[$PARTITION_INDEX]=$TYPE_GUID
+                
+                if [ -n "$TYPE_GUID" ]; then
+                    log_info "Found partition $INDEX: start=$START_SECTOR, size=$SIZE_SECTORS sectors, type=$TYPE_GUID"
+                else
+                    log_warn "Found partition $INDEX: start=$START_SECTOR, size=$SIZE_SECTORS sectors, but could not extract type GUID"
+                    log_warn "Partition type string: $PARTITION_TYPE"
+                fi
+                
+                # If this is not the main partition, keep original size
+                if [ "$INDEX" != "$MAIN_PARTITION_INDEX" ]; then
+                    TOTAL_FIXED_SIZE=$((TOTAL_FIXED_SIZE + SIZE_SECTORS))
+                else
+                    # This is the main partition
+                    MAIN_PARTITION_START=$START_SECTOR
+                fi
+                
+                PARTITION_INDEX=$((PARTITION_INDEX + 1))
+            fi
+        fi
+    done <<< "$GPT_OUTPUT"
+fi
 
 # Calculate new size for main partition
 # Available space = Total sectors - GPT reserved - fixed partitions - partition start offset
@@ -390,7 +514,7 @@ PARTITION_INFO_COUNT=0
 for i in "${!PARTITION_INDICES[@]}"; do
     INDEX=${PARTITION_INDICES[$i]}
     START=${PARTITION_STARTS[$i]}
-    UUID=${PARTITION_UUIDS[$i]}
+    TYPE_GUID=${PARTITION_TYPE_GUIDS[$i]}
     
     if [ "$INDEX" = "$MAIN_PARTITION_INDEX" ]; then
         # Use new size and start for main partition
@@ -401,8 +525,8 @@ for i in "${!PARTITION_INDICES[@]}"; do
         SIZE=${PARTITION_SIZES[$i]}
     fi
     
-    # Store as: "START INDEX SIZE UUID"
-    PARTITION_INFO_ARRAY[$PARTITION_INFO_COUNT]="$START $INDEX $SIZE $UUID"
+    # Store as: "START INDEX SIZE TYPE_GUID"
+    PARTITION_INFO_ARRAY[$PARTITION_INFO_COUNT]="$START $INDEX $SIZE $TYPE_GUID"
     PARTITION_INFO_COUNT=$((PARTITION_INFO_COUNT + 1))
 done
 
@@ -425,21 +549,26 @@ for i in $(seq 0 $((PARTITION_INFO_COUNT - 1))); do
     START=$(echo "${PARTITION_INFO_ARRAY[$i]}" | awk '{print $1}')
     INDEX=$(echo "${PARTITION_INFO_ARRAY[$i]}" | awk '{print $2}')
     SIZE=$(echo "${PARTITION_INFO_ARRAY[$i]}" | awk '{print $3}')
-    UUID=$(echo "${PARTITION_INFO_ARRAY[$i]}" | awk '{print $4}')
+    TYPE_GUID=$(echo "${PARTITION_INFO_ARRAY[$i]}" | awk '{print $4}')
     
-    if [ -n "$UUID" ]; then
+    if [ -n "$TYPE_GUID" ]; then
         if [ "$INDEX" = "$MAIN_PARTITION_INDEX" ]; then
-            log_info "Creating partition $INDEX: start=$START, size=$SIZE sectors (resized to $(echo "scale=2; $SIZE * 512 / 1024 / 1024 / 1024" | bc) GB)"
+            log_info "Creating partition $INDEX: start=$START, size=$SIZE sectors (resized to $(echo "scale=2; $SIZE * 512 / 1024 / 1024 / 1024" | bc) GB), type=$TYPE_GUID"
         else
-            log_info "Creating partition $INDEX: start=$START, size=$SIZE sectors (original)"
+            log_info "Creating partition $INDEX: start=$START, size=$SIZE sectors (original), type=$TYPE_GUID"
         fi
         
-        gpt add -b "$START" -s "$SIZE" -t "$UUID" "$TARGET_DISK" 2>&1 || {
-            log_error "Failed to create partition $INDEX"
+        # Use -t for partition type GUID (not UUID)
+        gpt add -b "$START" -s "$SIZE" -t "$TYPE_GUID" "$TARGET_DISK" 2>&1 || {
+            log_error "Failed to create partition $INDEX with type $TYPE_GUID"
+            log_error "This is critical - all partitions must be created for the system to boot"
             exit 1
         }
     else
-        log_warn "Could not extract UUID for partition $INDEX, skipping..."
+        log_error "Could not extract type GUID for partition $INDEX"
+        log_error "Partition type string: ${PARTITION_TYPES[$i]}"
+        log_error "This partition is required for the system to boot - cannot continue"
+        exit 1
     fi
 done
 

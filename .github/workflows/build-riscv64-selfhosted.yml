@@ -13,6 +13,9 @@ jobs:
     runs-on: [self-hosted, Linux, RISCV64]
     permissions:
       contents: write
+    env:
+      TARGET_ARCH: riscv64
+      RUNNER_ARCH: riscv64
     
     steps:
       - name: Setup system libraries

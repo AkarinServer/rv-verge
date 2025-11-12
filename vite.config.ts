@@ -1,12 +1,33 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
 import legacy from "@vitejs/plugin-legacy";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
+import reactSwc from "@vitejs/plugin-react-swc";
 import svgr from "vite-plugin-svgr";
 import { defineConfig } from "vite";
 
 // Get __dirname equivalent in ESM
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Detect architecture - use Babel-based React plugin for RISC-V, SWC for others
+// SWC doesn't have native bindings for RISC-V, so we must use Babel-based plugin
+const isRiscV = 
+  process.env.TARGET_ARCH === "riscv64" ||
+  process.env.RUNNER_ARCH === "riscv64" ||
+  process.arch === "riscv64" ||
+  os.arch() === "riscv64";
+
+// Use Babel-based React plugin for RISC-V (SWC doesn't support RISC-V)
+// Use SWC-based React plugin for other architectures (faster)
+const reactPlugin = isRiscV ? react() : reactSwc();
+
+if (isRiscV) {
+  console.log("[vite.config.ts] Detected RISC-V architecture, using Babel-based React plugin (@vitejs/plugin-react)");
+  console.log(`[vite.config.ts] TARGET_ARCH: ${process.env.TARGET_ARCH}, RUNNER_ARCH: ${process.env.RUNNER_ARCH}, process.arch: ${process.arch}, os.arch(): ${os.arch()}`);
+} else {
+  console.log(`[vite.config.ts] Using SWC-based React plugin (@vitejs/plugin-react-swc) - arch: ${process.arch || os.arch()}`);
+}
 
 export default defineConfig({
   root: "src",
@@ -19,7 +40,7 @@ export default defineConfig({
   },
   plugins: [
     svgr(),
-    react(),
+    reactPlugin,
     legacy({
       targets: ["edge>=109", "safari>=13"],
       renderLegacyChunks: false,
