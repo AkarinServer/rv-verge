@@ -16,8 +16,8 @@
   "build": {
     "beforeBuildCommand": "npm run web:build",
     "frontendDist": "../dist",
-    "beforeDevCommand": "npm run web:dev",
-    "devUrl": "http://localhost:5173/"
+    "devUrl": "http://localhost:5173/",
+    "beforeDevCommand": "npm run web:dev"
   },
   "productName": "RV Verge",
   "identifier": "io.github.rv-verge.rv-verge",
@@ -29,17 +29,7 @@
     }
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "RV Verge",
-        "url": "/",
-        "width": 1200,
-        "height": 800,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
+    "windows": [],
     "security": {
       "capabilities": ["desktop-capability"],
       "assetProtocol": {

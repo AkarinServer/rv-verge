@@ -96,12 +96,13 @@ jobs:
         run: |
           npm run prebuild || echo "Warning: prebuild failed, continuing..."
 
-      - name: Build frontend
-        run: npm run web:build
-
       - name: Build Tauri application (ARM64)
         run: |
+          # Build frontend first (beforeBuildCommand will also run, but we want to ensure it's built)
+          npm run web:build
           # Use fast-release profile for faster builds (极致速度组合)
+          # Note: beforeBuildCommand is set to "npm run web:build" in tauri.conf.json
+          # but we build it here explicitly to ensure it's ready
           npm run tauri build -- --target aarch64-apple-darwin -- --profile fast-release
 
       - name: Build Tauri application (x64)

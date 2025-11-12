@@ -43,20 +43,46 @@ pub fn run() {
             cmd::get_app_dir,
             cmd::open_app_dir,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             // Basic setup - just log that app is starting
             println!("RV Verge - Application starting...");
-            
-            // Get the main window and set title
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("RV Verge");
-            }
-            
             Ok(())
         });
 
-    builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    let app = builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    // Create window on app ready event (like clash-verge-rev does)
+    app.run(|app_handle, event| {
+        match event {
+            tauri::RunEvent::Ready | tauri::RunEvent::Resumed => {
+                // Create the main window when app is ready
+                // This ensures the window uses WebviewUrl::App("/") to load index.html
+                if app_handle.get_webview_window("main").is_none() {
+                    match tauri::WebviewWindowBuilder::new(
+                        app_handle,
+                        "main",
+                        tauri::WebviewUrl::App("/".into()),
+                    )
+                    .title("RV Verge")
+                    .inner_size(1200.0, 800.0)
+                    .resizable(true)
+                    .fullscreen(false)
+                    .visible(true)
+                    .build()
+                    {
+                        Ok(window) => {
+                            println!("RV Verge - Main window created successfully: {:?}", window.label());
+                        }
+                        Err(e) => {
+                            eprintln!("RV Verge - Failed to create main window: {}", e);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
