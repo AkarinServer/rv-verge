@@ -50,6 +50,49 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version calculation
+
+      - name: Configure Cargo persistent storage
+        run: |
+          # Configure persistent storage for Cargo registry to speed up builds
+          # We cache the registry (dependencies) but use default target dir for builds
+          sudo mkdir -p /opt/build-cache/cargo /opt/build-cache/node
+          sudo chown -R $USER:$USER /opt/build-cache 2>/dev/null || sudo chown -R $(whoami):$(whoami) /opt/build-cache
+          echo "CARGO_HOME=/opt/build-cache/cargo" >> $GITHUB_ENV
+          echo "CARGO_INCREMENTAL=1" >> $GITHUB_ENV
+          # Don't set CARGO_TARGET_DIR - let Tauri use default src-tauri/target
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/build-cache/cargo/registry
+            /opt/build-cache/cargo/git
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Cargo build (target directory)
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-target-riscv64-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-riscv64-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Update system
         run: |
@@ -111,8 +154,29 @@ jobs:
           fi
           
           # Ensure cargo is available in subsequent steps
-          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
-          echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
+          # Note: We use persistent storage for registry cache, but keep default target dir
+          # This allows Tauri to build to src-tauri/target while caching dependencies
+          if [ -n "$CARGO_HOME" ]; then
+            echo "Using persistent Cargo registry: $CARGO_HOME"
+            # Copy cargo binary if needed
+            if [ ! -f "$CARGO_HOME/bin/cargo" ] && [ -f "$HOME/.cargo/bin/cargo" ]; then
+              mkdir -p "$CARGO_HOME/bin"
+              cp "$HOME/.cargo/bin/cargo" "$CARGO_HOME/bin/" 2>/dev/null || true
+            fi
+            # Set PATH to use persistent cargo if available
+            if [ -f "$CARGO_HOME/bin/cargo" ]; then
+              echo "PATH=$CARGO_HOME/bin:$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+            else
+              echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+            fi
+          else
+            echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
+            echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+          fi
+          
+          # Don't set CARGO_TARGET_DIR to allow Tauri to use default location
+          # This makes release file paths predictable
+          unset CARGO_TARGET_DIR || true
 
       - name: Install project dependencies
         run: |
@@ -151,6 +215,30 @@ jobs:
             npm install --save-dev @vitejs/plugin-react
           fi
 
+      - name: Calculate version
+        id: version
+        run: |
+          # Calculate version based on commit count (自动版本递增)
+          # Format: 0.1.${COMMIT_COUNT}
+          BASE_VERSION="0.1"
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION="${BASE_VERSION}.${COMMIT_COUNT}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (based on commit count: $COMMIT_COUNT)"
+          
+          # Update package.json and Cargo.toml with new version (构建前更新版本)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Updated package.json version to', pkg.version);
+          "
+          
+          # Update Cargo.toml version
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          echo "Updated Cargo.toml version to $VERSION"
+
       - name: Run prebuild
         run: |
           npm run prebuild || echo "Warning: prebuild failed, continuing..."
@@ -172,51 +260,82 @@ jobs:
         run: |
           # Build Tauri app with only deb and rpm bundles (skip appimage for RISC-V)
           # AppImage doesn't support RISC-V architecture
-          npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          # Use fast-release profile for faster builds (极致速度组合)
+          # Note: Tauri uses CARGO_TARGET_DIR if set, but outputs to src-tauri/target
+          # We'll use default location for simplicity, but cache will speed up builds
+          npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm -- --profile fast-release
+          
+          # Verify build output
+          echo "Build output verification:"
+          ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/ 2>/dev/null || echo "Release directory not found"
+          ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/ 2>/dev/null || echo "Bundle directory not found"
 
       - name: Prepare release files
         id: release_files
         run: |
-          # Find all release files
-          RELEASE_FILES=""
+          # Find all release files (修复release文件上传问题)
+          # Tauri builds to src-tauri/target regardless of CARGO_TARGET_DIR
+          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          
+          echo "Checking release directory: $RELEASE_DIR"
+          ls -la "$RELEASE_DIR/" 2>/dev/null || echo "Release directory not found"
+          ls -la "$RELEASE_DIR/bundle/" 2>/dev/null || echo "Bundle directory not found"
+          
+          # Create release files list
+          RELEASE_FILES=()
           
           # Binary file
-          if [ -f "src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge" ]; then
-            RELEASE_FILES="$RELEASE_FILES src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge"
+          if [ -f "$RELEASE_DIR/rv-verge" ]; then
+            RELEASE_FILES+=("$RELEASE_DIR/rv-verge")
+            echo "✓ Found binary: $RELEASE_DIR/rv-verge"
+          else
+            echo "✗ Binary not found: $RELEASE_DIR/rv-verge"
           fi
           
           # DEB packages
-          if [ -d "src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/deb" ]; then
-            for file in src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/deb/*.deb; do
+          if [ -d "$RELEASE_DIR/bundle/deb" ]; then
+            for file in "$RELEASE_DIR/bundle/deb"/*.deb; do
               if [ -f "$file" ]; then
-                RELEASE_FILES="$RELEASE_FILES $file"
+                RELEASE_FILES+=("$file")
+                echo "✓ Found DEB: $(basename "$file")"
               fi
             done
+          else
+            echo "✗ DEB directory not found: $RELEASE_DIR/bundle/deb"
           fi
           
           # RPM packages
-          if [ -d "src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/rpm" ]; then
-            for file in src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/rpm/*.rpm; do
+          if [ -d "$RELEASE_DIR/bundle/rpm" ]; then
+            for file in "$RELEASE_DIR/bundle/rpm"/*.rpm; do
               if [ -f "$file" ]; then
-                RELEASE_FILES="$RELEASE_FILES $file"
+                RELEASE_FILES+=("$file")
+                echo "✓ Found RPM: $(basename "$file")"
               fi
             done
+          else
+            echo "✗ RPM directory not found: $RELEASE_DIR/bundle/rpm"
           fi
           
-          # Remove leading space and set output
-          RELEASE_FILES=$(echo "$RELEASE_FILES" | sed 's/^ *//')
+          # Check if files exist
+          if [ ${#RELEASE_FILES[@]} -eq 0 ]; then
+            echo "Error: No release files found!"
+            echo "Build directory contents:"
+            find "$RELEASE_DIR" -type f 2>/dev/null | head -20 || echo "Cannot list files"
+            exit 1
+          fi
           
-          echo "files=$RELEASE_FILES" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Found ${#RELEASE_FILES[@]} release file(s):"
+          for file in "${RELEASE_FILES[@]}"; do
+            echo "  - $file ($(du -h "$file" | cut -f1))"
+          done
           
-          echo "Release files:"
-          echo "$RELEASE_FILES"
+          # Output files list (每行一个文件路径，使用multiline format)
+          {
+            echo "files<<EOF"
+            printf '%s\n' "${RELEASE_FILES[@]}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create or update GitHub Release (RISC-V)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -244,18 +363,13 @@ jobs:
             - **Built on:** GitHub Actions macOS runner
             - **DMG:** Disk image for easy installation
             - **App:** macOS application bundle (zip)
-            - **Note:** macOS build will be added when macOS workflow completes
-            
-            ### Notes
-            
-            - AppImage is not supported for RISCV64 architecture
-            - ARM64 build for Apple Silicon Macs (M1/M2/M3)
-            - x64 build for Intel Macs (if available)
           files: ${{ steps.release_files.outputs.files }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
           generate_release_notes: false
+          append_body: false
+          token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
