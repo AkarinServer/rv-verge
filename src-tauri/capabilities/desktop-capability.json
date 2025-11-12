@@ -51,8 +51,6 @@
       "identifier": "http:default",
       "allow": [{ "url": "https://*/*" }, { "url": "http://*/*" }]
     }
-    // TODO: Add mihomo:default when mihomo plugin is initialized
-    // "mihomo:default"
   ]
 }
 
