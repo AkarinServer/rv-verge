@@ -7,7 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnpm-store
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
 dist
 dist-ssr
 *.local
@@ -25,4 +32,34 @@ dist-ssr
 
 # Tauri
 src-tauri/target
+src-tauri/Cargo.lock
 
+# Reference project (clash-verge-rev) - do not commit
+clash-verge-rev/
+
+# Cache files
+.eslintcache
+.cache
+*.cache
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

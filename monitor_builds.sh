@@ -2,7 +2,7 @@
 # GitHub Actions 构建状态监控脚本
 # 每1分钟检查一次构建状态
 
-REPO="AkarinServer/tauri-test"
+REPO="AkarinServer/rv-verge"
 INTERVAL=60  # 60秒 = 1分钟
 
 echo "🔍 开始监控 GitHub Actions 构建状态..."

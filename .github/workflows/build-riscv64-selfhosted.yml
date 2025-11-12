@@ -1,4 +1,4 @@
-name: Build RISCV64 (Self-Hosted Runner)
+name: Build RV Verge (RISC-V)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-riscv64-selfhosted:
+  build-riscv64:
     name: Build for RISCV64 Linux (Self-Hosted)
     runs-on: [self-hosted, Linux, RISCV64]
     permissions:
@@ -67,7 +67,7 @@ jobs:
 
       - name: Install Node.js
         run: |
-          # 检查是否已安装 Node.js
+          # Check if Node.js is already installed
           if command -v node &> /dev/null; then
             echo "Node.js already installed: $(node --version)"
             echo "npm version: $(npm --version)"
@@ -80,7 +80,7 @@ jobs:
             
             cd /tmp
             wget -q "$NODE_URL" -O "${NODE_DIST}.tar.xz" || {
-              echo "错误: 无法下载 Node.js ${NODE_VERSION} for RISCV64 from GitHub Releases"
+              echo "Error: Failed to download Node.js ${NODE_VERSION} for RISCV64"
               exit 1
             }
             
@@ -107,7 +107,7 @@ jobs:
             echo "Rust installed: $(rustc --version)"
           fi
           
-          # 确保 cargo 在后续步骤中可用
+          # Ensure cargo is available in subsequent steps
           echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
           echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
 
@@ -117,65 +117,111 @@ jobs:
           ls -la
           
           if [ -f package-lock.json ]; then
-            echo "找到 package-lock.json，使用 npm ci"
+            echo "Found package-lock.json, using npm ci"
             npm ci
           else
-            echo "警告: package-lock.json 不存在，使用 npm install"
+            echo "Warning: package-lock.json not found, using npm install"
             npm install
           fi
 
+      - name: Run prebuild
+        run: npm run prebuild || echo "Warning: prebuild failed, continuing..."
+
       - name: Build frontend
-        run: |
-          npm run build
+        run: npm run web:build
 
       - name: Build Tauri application
-        run: |
-          npm run tauri build -- --target riscv64gc-unknown-linux-gnu
+        run: npm run tauri build -- --target riscv64gc-unknown-linux-gnu
 
       - name: Get version
         id: version
         run: |
-          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Create GitHub Release
+      - name: Prepare release files
+        id: release_files
+        run: |
+          # Find all release files
+          RELEASE_FILES=""
+          
+          # Binary file
+          if [ -f "src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge" ]; then
+            RELEASE_FILES="$RELEASE_FILES src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge"
+          fi
+          
+          # DEB packages
+          if [ -d "src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/deb" ]; then
+            for file in src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/deb/*.deb; do
+              if [ -f "$file" ]; then
+                RELEASE_FILES="$RELEASE_FILES $file"
+              fi
+            done
+          fi
+          
+          # RPM packages
+          if [ -d "src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/rpm" ]; then
+            for file in src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/rpm/*.rpm; do
+              if [ -f "$file" ]; then
+                RELEASE_FILES="$RELEASE_FILES $file"
+              fi
+            done
+          fi
+          
+          # Remove leading space and set output
+          RELEASE_FILES=$(echo "$RELEASE_FILES" | sed 's/^ *//')
+          
+          echo "files=$RELEASE_FILES" >> $GITHUB_OUTPUT
+          
+          echo "Release files:"
+          echo "$RELEASE_FILES"
+
+      - name: Create or update GitHub Release (RISC-V)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version }}-riscv64
-          name: Release v${{ steps.version.outputs.version }} (RISCV64)
+          tag_name: v${{ steps.version.outputs.version }}
+          name: RV Verge v${{ steps.version.outputs.version }}
           body: |
-            ## Tauri RISCV64 Build
+            ## RV Verge v${{ steps.version.outputs.version }}
             
-            **Version:** ${{ steps.version.outputs.version }}
-            **Architecture:** RISCV64 (riscv64gc-unknown-linux-gnu)
             **Build Date:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
             
-            ### Downloads
+            ### RISC-V (Linux)
             
-            - **DEB Package**: For Debian/Ubuntu based systems
-            - **RPM Package**: For Red Hat/Fedora based systems
-            - **Binary**: Standalone executable
+            - **Architecture:** RISCV64 (riscv64gc-unknown-linux-gnu)
+            - **Built on:** Self-hosted RISCV64 runner
+            - **DEB Package:** For Debian/Ubuntu based systems
+            - **RPM Package:** For Red Hat/Fedora based systems
+            - **Binary:** Standalone executable
+            
+            ### macOS
+            
+            - **Architecture:** ARM64 (Apple Silicon) and x64 (Intel)
+            - **Built on:** GitHub Actions macOS runner
+            - **DMG:** Disk image for easy installation
+            - **App:** macOS application bundle (zip)
+            - **Note:** macOS build will be added when macOS workflow completes
             
             ### Notes
             
-            - Built on self-hosted RISCV64 runner (milkv-pioneer)
             - AppImage is not supported for RISCV64 architecture
-          files: |
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/tauri-riscv64-test
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/deb/*.deb
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/rpm/*.rpm
+            - ARM64 build for Apple Silicon Macs (M1/M2/M3)
+            - x64 build for Intel Macs (if available)
+          files: ${{ steps.release_files.outputs.files }}
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-riscv64-selfhosted
+          name: rv-verge-riscv64
           path: |
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/tauri-riscv64-test
+            src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge
             src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/
-

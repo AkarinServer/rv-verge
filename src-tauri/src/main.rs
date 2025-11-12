@@ -1,15 +1,14 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! This is a Tauri app running on RISCV64.", name)
-}
-
 fn main() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
+    #[cfg(feature = "tokio-trace")]
+    console_subscriber::init();
 
+    // Check for --no-tray command line argument
+    #[cfg(target_os = "linux")]
+    if std::env::args().any(|x| x == "--no-tray") {
+        unsafe {
+            std::env::set_var("CLASH_VERGE_DISABLE_TRAY", "1");
+        }
+    }
+    app_lib::run();
+}

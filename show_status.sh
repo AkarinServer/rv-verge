@@ -1,5 +1,5 @@
 #!/bin/bash
-REPO="AkarinServer/tauri-test"
+REPO="AkarinServer/rv-verge"
 echo "═══════════════════════════════════════════════════════════"
 echo "  GitHub Actions 构建状态 - $(date '+%Y-%m-%d %H:%M:%S')"
 echo "═══════════════════════════════════════════════════════════"

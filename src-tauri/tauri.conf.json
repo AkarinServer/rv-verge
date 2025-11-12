@@ -1,30 +1,9 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-riscv64-test",
   "version": "0.1.0",
-  "identifier": "com.tauri.riscv64test",
-  "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
-  },
-  "app": {
-    "windows": [
-      {
-        "title": "Tauri RISCV64 Test",
-        "width": 800,
-        "height": 600,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
-    "security": {
-      "csp": null
-    }
-  },
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm"],
+    "longDescription": "RV Verge - Clash Verge Rev lightweight version for RISC-V",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,7 +12,50 @@
       "icons/256x256@2x.png",
       "icons/512x512.png",
       "icons/512x512@2x.png"
-    ]
+    ],
+    "resources": ["resources"],
+    "publisher": "RV Verge",
+    "externalBin": ["sidecar/verge-mihomo-*"],
+    "copyright": "GNU General Public License v3.0",
+    "category": "DeveloperTool",
+    "shortDescription": "RV Verge",
+    "createUpdaterArtifacts": false
+  },
+  "build": {
+    "beforeBuildCommand": "npm run web:build",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm run web:dev",
+    "devUrl": "http://localhost:3000/"
+  },
+  "productName": "RV Verge",
+  "identifier": "io.github.rv-verge.rv-verge",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["rv-verge"]
+      }
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "RV Verge",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "capabilities": ["desktop-capability"],
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["**"],
+          "requireLiteralLeadingDot": false
+        }
+      },
+      "csp": null
+    }
   }
 }
-

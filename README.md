@@ -1,168 +1,192 @@
-# Tauri RISCV64 测试项目
+# RV Verge
 
-这是一个用于验证 Tauri 在 Ubuntu Linux RISCV64 系统上运行的最小可行性测试项目。
+Clash Verge Rev - Lightweight version for RISC-V devices (Lichee RV Dock)
+
+## 项目概述
+
+RV Verge 是 Clash Verge Rev 的精简版本，专门为低资源设备（如 Lichee RV Dock）设计。
+
+## 项目状态
+
+⚠️ **当前状态**: 基础结构已创建，正在测试基础功能
+
+## 快速开始
+
+### 安装依赖
+
+```bash
+# 删除旧的 node_modules 和锁文件
+rm -rf node_modules package-lock.json
+
+# 安装依赖
+npm install
+# 或
+pnpm install
+```
+
+### 开发模式
+
+```bash
+# 启动开发服务器
+npm run dev
+```
+
+### 构建项目
+
+#### macOS
+
+```bash
+# 构建 macOS ARM64 版本
+npm run tauri build -- --target aarch64-apple-darwin
+
+# 构建 macOS x64 版本
+npm run tauri build -- --target x86_64-apple-darwin
+```
+
+#### RISC-V (Linux)
+
+```bash
+# 在 RISC-V 设备上构建
+npm run tauri build -- --target riscv64gc-unknown-linux-gnu
+```
+
+## CI 构建
+
+项目已配置 GitHub Actions CI，支持自动构建：
+
+- **RISC-V (Linux)**: 在 QEMU 模拟的 RISC-V 环境中构建
+- **macOS**: 在 macOS runner 上构建（ARM64 和 x64）
+
+### 触发构建
+
+1. 推送到 `main` 或 `master` 分支
+2. 创建 Pull Request
+3. 手动触发 workflow（GitHub Actions 页面）
+
+### 构建产物
+
+构建完成后，可以在 GitHub Actions 页面下载构建产物：
+
+- **RISC-V**: `rv-verge-riscv64` artifact
+- **macOS**: `rv-verge-macos` artifact
 
 ## 项目结构
 
 ```
 .
-├── src-tauri/          # Tauri 后端 (Rust)
-│   ├── src/
-│   │   └── main.rs     # Rust 主文件
-│   ├── Cargo.toml      # Rust 依赖配置
-│   ├── tauri.conf.json # Tauri 配置文件
-│   └── .cargo/
-│       └── config.toml # RISCV64 交叉编译配置
-├── index.html          # 前端 HTML
-├── main.js             # 前端 JavaScript
-├── vite.config.js      # Vite 配置
-└── package.json        # Node.js 依赖配置
+├── src/                    # 前端代码（React + TypeScript）
+│   ├── components/         # UI 组件
+│   ├── pages/             # 页面
+│   ├── hooks/             # React Hooks
+│   ├── services/          # 服务层
+│   ├── providers/         # 数据提供者
+│   └── utils/             # 工具函数
+├── src-tauri/             # Rust 后端代码
+│   ├── src/               # Rust 源代码
+│   ├── Cargo.toml         # Rust 依赖配置
+│   └── tauri.conf.json    # Tauri 配置
+├── scripts/               # 构建脚本
+│   ├── prebuild.mjs       # 预构建脚本（下载 mihomo 内核）
+│   └── utils.mjs          # 工具函数
+└── package.json           # 前端依赖配置
 ```
 
-## 前置要求
+## 功能特性
 
-### 1. 安装系统依赖
+### 当前功能（基础版本）
 
-在 Ubuntu Linux RISCV64 系统上安装以下依赖：
+- ✅ 基础 UI 框架
+- ✅ 主题支持（亮色/暗色）
+- ✅ 错误处理
+- ✅ 基础路由
+
+### 计划功能
+
+- ⚠️ 代理管理
+- ⚠️ 配置管理（使用简单文本编辑器）
+- ⚠️ 系统代理设置
+- ⚠️ 基本设置
+
+## 技术栈
+
+### 前端
+- React 19
+- TypeScript
+- Material-UI（基础组件）
+- React Router
+- Tauri API
+- SWR
+
+### 后端
+- Rust
+- Tauri 2
+- Clash Meta (mihomo) 插件
+
+### 移除的依赖
+- Monaco Editor（使用简单文本编辑器替代）
+- @dnd-kit（拖拽功能）
+- react-virtuoso（虚拟列表）
+- @mui/x-data-grid（复杂表格）
+- @mui/lab（实验性组件）
+- react-markdown（Markdown 渲染）
+
+## 开发计划
+
+### 阶段 1: 基础结构 ✅
+- [x] 创建项目结构
+- [x] 配置构建工具
+- [x] 创建基础组件
+- [x] 创建 CI 配置
+
+### 阶段 2: 核心功能 🚧
+- [ ] 移植 Rust 后端
+- [ ] 实现代理管理
+- [ ] 实现配置管理
+- [ ] 实现系统设置
+
+### 阶段 3: 优化 🚧
+- [ ] 优化资源使用
+- [ ] 性能测试
+- [ ] 在 RV Dock 上测试
+
+## 测试
+
+### 本地测试
 
 ```bash
-sudo apt update
-sudo apt install -y \
-  libwebkit2gtk-4.1-dev \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libxdo-dev \
-  libssl-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev
-```
-
-**注意**: 某些依赖项在 RISCV64 架构上可能不可用或需要替代方案。请根据实际情况调整。
-
-### 2. 安装 Rust
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-### 3. 添加 RISCV64 目标
-
-```bash
-rustup target add riscv64gc-unknown-linux-gnu
-```
-
-### 4. 安装交叉编译工具链
-
-```bash
-sudo apt install -y gcc-riscv64-linux-gnu
-```
-
-### 5. 安装 Node.js 和 npm
-
-```bash
-# 使用 nvm 或直接安装
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install --lts
-```
-
-## 安装项目依赖
-
-```bash
-npm install
-```
-
-## 开发模式
-
-```bash
+# 开发模式
 npm run dev
+
+# 构建测试
+npm run build
 ```
 
-这将启动 Vite 开发服务器和 Tauri 应用。
+### CI 测试
 
-## 构建项目
+推送到 GitHub 后，CI 会自动构建并测试。
 
-### 构建 macOS ARM64 架构
+## 已知问题
 
-```bash
-npm run tauri build -- --target aarch64-apple-darwin
-```
+1. **Rust 后端**: 当前是占位符，需要从 clash-verge-rev 参考复制完整代码
+2. **前端功能**: 当前只有基础 UI，功能还未实现
+3. **资源文件**: 需要添加图标等资源文件
 
-### 构建 RISCV64 架构
+## 贡献
 
-**⚠️ 重要提示**: 在 macOS 上交叉编译 RISCV64 Linux 应用非常复杂且不现实，因为需要：
-- RISCV64 Linux sysroot
-- 交叉编译的 GTK/WebKit 等系统库
-- 复杂的 pkg-config 配置
-
-**推荐方案**: 使用 GitHub Actions CI 进行构建（见下方）
-
-#### 在 RISCV64 系统上直接构建
-
-如果您有 Ubuntu Linux RISCV64 系统：
-
-```bash
-npm run tauri build -- --target riscv64gc-unknown-linux-gnu
-```
-
-#### 使用 GitHub Actions CI（推荐）
-
-项目已配置 GitHub Actions workflows，可以在 CI 中自动构建 RISCV64 版本：
-
-1. **简单方案** (推荐): `.github/workflows/build-riscv64-simple.yml`
-   - 使用 `uraimo/run-on-arch-action` 在 QEMU 模拟的 RISCV64 环境中构建
-   - 最简单，推荐使用
-
-2. **Docker 方案**: `.github/workflows/build-riscv64-docker.yml`
-   - 使用 Docker 容器构建
-
-3. **交叉编译方案**: `.github/workflows/build-riscv64.yml`
-   - 使用 QEMU 和交叉编译工具链
-
-只需将代码推送到 GitHub，CI 会自动运行 RISCV64 构建。
-
-## 已知问题和限制
-
-1. **WebKitGTK 支持**: WebKitGTK 在 RISCV64 上的支持可能有限。如果遇到问题，可能需要：
-   - 使用替代的 WebView 实现
-   - 等待上游支持
-   - 使用社区维护的构建
-
-2. **依赖项可用性**: 某些系统依赖项可能在 RISCV64 仓库中不可用，需要：
-   - 从源码编译
-   - 使用替代包
-   - 等待官方支持
-
-3. **交叉编译**: 如果从其他架构交叉编译到 RISCV64，可能需要额外的配置和工具链设置。
-
-## 测试验证
-
-1. 运行开发模式，确认应用可以正常启动
-2. 测试前端与 Rust 后端的通信（点击 Greet 按钮）
-3. 构建 RISCV64 版本并验证可执行文件
-4. 在目标 RISCV64 系统上运行构建产物
-
-## 故障排除
-
-### 链接器错误
-
-如果遇到链接器相关错误，检查 `.cargo/config.toml` 中的链接器配置是否正确。
-
-### WebKit 相关错误
-
-如果 WebKitGTK 不可用，可能需要：
-- 检查系统是否安装了正确的 WebKit 版本
-- 考虑使用其他 WebView 后端（如果 Tauri 支持）
-
-### 构建失败
-
-- 确保所有系统依赖已安装
-- 检查 Rust 工具链是否正确安装
-- 验证交叉编译工具链是否可用
+欢迎贡献！请参考 [CONTRIBUTING.md](CONTRIBUTING.md)（待创建）
 
 ## 许可证
 
-本项目仅用于测试目的。
+GPL-3.0 License
 
+## 参考
+
+- **clash-verge-rev**: https://github.com/clash-verge-rev/clash-verge-rev
+- **Tauri**: https://tauri.app/
+- **Clash Meta**: https://github.com/MetaCubeX/mihomo
+
+---
+
+**状态**: 开发中
+**版本**: 0.1.0
+**目标平台**: RISC-V (Lichee RV Dock), macOS, Linux
