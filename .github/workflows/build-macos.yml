@@ -113,10 +113,19 @@ jobs:
         id: release_files
         run: |
           # Find all release files (修复release文件上传问题)
+          # Note: We use fast-release profile, so files are in fast-release directory
           RELEASE_FILES=()
           
-          # ARM64 DMG
-          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg" ]; then
+          # ARM64 DMG (fast-release profile)
+          if [ -d "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/dmg" ]; then
+            for file in src-tauri/target/aarch64-apple-darwin/fast-release/bundle/dmg/*.dmg; do
+              if [ -f "$file" ]; then
+                RELEASE_FILES+=("$file")
+                echo "✓ Found ARM64 DMG: $(basename "$file")"
+              fi
+            done
+          elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg" ]; then
+            # Fallback to release profile
             for file in src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg; do
               if [ -f "$file" ]; then
                 RELEASE_FILES+=("$file")
@@ -128,7 +137,23 @@ jobs:
           fi
           
           # ARM64 macOS app (zip it for release)
-          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
+          if [ -d "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos" ]; then
+            for file in src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos/*.app; do
+              if [ -d "$file" ]; then
+                # Create zip file for .app bundle
+                APP_NAME=$(basename "$file" .app)
+                ZIP_FILE="src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos/${APP_NAME}-aarch64.zip"
+                cd "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos"
+                zip -r "${APP_NAME}-aarch64.zip" "${APP_NAME}.app" || true
+                cd - > /dev/null
+                if [ -f "$ZIP_FILE" ]; then
+                  RELEASE_FILES+=("$ZIP_FILE")
+                  echo "✓ Found ARM64 ZIP: $(basename "$ZIP_FILE")"
+                fi
+              fi
+            done
+          elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
+            # Fallback to release profile
             for file in src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app; do
               if [ -d "$file" ]; then
                 # Create zip file for .app bundle
@@ -147,8 +172,16 @@ jobs:
             echo "✗ ARM64 app directory not found"
           fi
           
-          # x64 DMG (if available)
-          if [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg" ]; then
+          # x64 DMG (if available, fast-release profile)
+          if [ -d "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/dmg" ]; then
+            for file in src-tauri/target/x86_64-apple-darwin/fast-release/bundle/dmg/*.dmg; do
+              if [ -f "$file" ]; then
+                RELEASE_FILES+=("$file")
+                echo "✓ Found x64 DMG: $(basename "$file")"
+              fi
+            done
+          elif [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg" ]; then
+            # Fallback to release profile
             for file in src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
               if [ -f "$file" ]; then
                 RELEASE_FILES+=("$file")
@@ -157,8 +190,24 @@ jobs:
             done
           fi
           
-          # x64 macOS app (if available)
-          if [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" ]; then
+          # x64 macOS app (if available, fast-release profile)
+          if [ -d "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos" ]; then
+            for file in src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos/*.app; do
+              if [ -d "$file" ]; then
+                # Create zip file for .app bundle
+                APP_NAME=$(basename "$file" .app)
+                ZIP_FILE="src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos/${APP_NAME}-x64.zip"
+                cd "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos"
+                zip -r "${APP_NAME}-x64.zip" "${APP_NAME}.app" || true
+                cd - > /dev/null
+                if [ -f "$ZIP_FILE" ]; then
+                  RELEASE_FILES+=("$ZIP_FILE")
+                  echo "✓ Found x64 ZIP: $(basename "$ZIP_FILE")"
+                fi
+              fi
+            done
+          elif [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" ]; then
+            # Fallback to release profile
             for file in src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app; do
               if [ -d "$file" ]; then
                 # Create zip file for .app bundle
@@ -235,5 +284,7 @@ jobs:
         with:
           name: rv-verge-macos
           path: |
+            src-tauri/target/aarch64-apple-darwin/fast-release/bundle/
+            src-tauri/target/x86_64-apple-darwin/fast-release/bundle/
             src-tauri/target/aarch64-apple-darwin/release/bundle/
             src-tauri/target/x86_64-apple-darwin/release/bundle/
