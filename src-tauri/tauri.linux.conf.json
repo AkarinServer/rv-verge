@@ -24,8 +24,7 @@
       }
     },
     "externalBin": [
-      "./sidecar/verge-mihomo",
-      "./sidecar/verge-mihomo-alpha"
+      "./sidecar/verge-mihomo"
     ]
   }
 }

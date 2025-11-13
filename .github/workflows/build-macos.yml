@@ -215,9 +215,30 @@ jobs:
               fi
             done
           else
-            echo "✗ ARM64 DMG directory not found"
+            echo "⚠ ARM64 DMG directory not found, will try to use .app bundle instead"
           fi
           
+          # If DMG not found, try to use .app bundle (fallback)
+          if [ ${#RELEASE_FILES[@]} -eq 0 ]; then
+            echo "DMG not available, looking for .app bundle..."
+            APP_BUNDLE=""
+            if [ -d "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos" ]; then
+              APP_BUNDLE=$(find src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos -name "*.app" -type d | head -1)
+            elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
+              APP_BUNDLE=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/macos -name "*.app" -type d | head -1)
+            fi
+            
+            if [ -n "$APP_BUNDLE" ] && [ -d "$APP_BUNDLE" ]; then
+              echo "✓ Found .app bundle: $APP_BUNDLE"
+              # Create a zip of the .app bundle for release
+              APP_NAME=$(basename "$APP_BUNDLE" .app)
+              ZIP_PATH="$(dirname "$APP_BUNDLE")/${APP_NAME}.zip"
+              cd "$(dirname "$APP_BUNDLE")"
+              zip -r "${APP_NAME}.zip" "${APP_NAME}.app" > /dev/null 2>&1
+              RELEASE_FILES+=("$ZIP_PATH")
+              echo "✓ Created zip archive: $ZIP_PATH"
+            fi
+          fi
           
           # Check if files exist
           if [ ${#RELEASE_FILES[@]} -eq 0 ]; then
