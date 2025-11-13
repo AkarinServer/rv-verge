@@ -1,8 +1,6 @@
 import { BasePage } from "@/components/base";
-import { useTranslation } from "react-i18next";
 
 const ProxiesPage = () => {
-  const { t } = useTranslation();
 
   return (
     <BasePage title="代理" contentStyle={{ padding: 2 }}>

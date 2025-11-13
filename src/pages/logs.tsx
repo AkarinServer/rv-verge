@@ -1,8 +1,6 @@
 import { BasePage } from "@/components/base";
-import { useTranslation } from "react-i18next";
 
 const LogsPage = () => {
-  const { t } = useTranslation();
 
   return (
     <BasePage title="日志" contentStyle={{ padding: 2 }}>

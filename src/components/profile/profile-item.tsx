@@ -1,7 +1,6 @@
 import {
   CheckCircle,
   Delete,
-  Edit,
   MoreVert,
   RadioButtonUnchecked,
   Update,

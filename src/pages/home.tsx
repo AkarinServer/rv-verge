@@ -1,10 +1,8 @@
 import {
-  LocationOnOutlined,
   RefreshOutlined,
   RouterOutlined,
   InfoOutlined,
   ShowChartOutlined,
-  StorageOutlined,
 } from "@mui/icons-material";
 import { Box, Grid, IconButton } from "@mui/material";
 import { useTranslation } from "react-i18next";

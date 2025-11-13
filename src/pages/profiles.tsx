@@ -19,7 +19,7 @@ import { mutate } from "swr";
 
 import { BasePage } from "@/components/base";
 import { ProfileItem } from "@/components/profile/profile-item";
-import { importProfile, getProfiles, type IProfilesConfig } from "@/services/cmds";
+import { importProfile, getProfiles, type IProfilesConfig, type IProfileItem } from "@/services/cmds";
 import useSWR from "swr";
 import type { IProfileOption } from "@/types";
 
@@ -308,7 +308,7 @@ const ProfilesPage = () => {
                 gap: 2,
               }}
             >
-              {profilesConfig.items.map((profile) => (
+              {profilesConfig.items.map((profile: IProfileItem) => (
                 <ProfileItem
                   key={profile.uid}
                   profile={profile}

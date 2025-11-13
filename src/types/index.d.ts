@@ -8,6 +8,7 @@ export interface IProfileItem {
   desc?: string;
   file?: string;
   url?: string;
+  home?: string; // Profile homepage URL
   selected?: string[];
   updated?: number;
   extra?: Record<string, any>;

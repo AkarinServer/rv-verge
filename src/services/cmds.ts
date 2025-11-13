@@ -13,6 +13,9 @@ import type {
   IProfileOption,
 } from "@/types";
 
+// Re-export types for convenience
+export type { IProfileItem, IProfilesConfig };
+
 // Profile commands
 export async function getProfiles(): Promise<IProfilesConfig> {
   return invoke<IProfilesConfig>("get_profiles");

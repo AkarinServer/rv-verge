@@ -1,8 +1,6 @@
 import { BasePage } from "@/components/base";
-import { useTranslation } from "react-i18next";
 
 const RulesPage = () => {
-  const { t } = useTranslation();
 
   return (
     <BasePage title="规则" contentStyle={{ padding: 2 }}>

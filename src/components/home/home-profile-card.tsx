@@ -1,5 +1,4 @@
 import {
-  CloudUploadOutlined,
   DnsOutlined,
   EventOutlined,
   LaunchOutlined,
@@ -70,7 +69,7 @@ export const HomeProfileCard = () => {
   const current = useMemo(() => {
     if (!profilesConfig?.current || !profilesConfig?.items) return null;
     return profilesConfig.items.find(
-      (item) => item.uid === profilesConfig.current
+      (item: IProfileItem) => item.uid === profilesConfig.current
     );
   }, [profilesConfig]);
 

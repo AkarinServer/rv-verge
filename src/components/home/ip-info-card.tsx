@@ -22,7 +22,7 @@ export interface IpInfoCardRef {
   refresh: () => void;
 }
 
-export const IpInfoCard = forwardRef<IpInfoCardRef>((props, ref) => {
+export const IpInfoCard = forwardRef<IpInfoCardRef>((_props, ref) => {
   const { t } = useTranslation();
   const [ipInfo, setIpInfo] = useState<IpInfo | null>(null);
   const [loading, setLoading] = useState(true);
