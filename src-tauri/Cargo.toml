@@ -154,11 +154,15 @@ rpath = false
 [profile.fast-release]
 inherits = "release"
 codegen-units = 64
-incremental = true
+# Disable incremental for RISC-V builds (can be slower on weak CPUs)
+# Incremental compilation adds overhead and may not help on RISC-V
+incremental = false
 lto = false
-opt-level = 0
-debug = true
-strip = false
+# Use opt-level 1 for RISC-V: faster than 0, but still much faster than 3
+# This provides a good balance between compile time and runtime performance
+opt-level = 1
+debug = false
+strip = true
 
 [lib]
 name = "app_lib"
