@@ -147,6 +147,16 @@ jobs:
           echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
           echo "CARGO_INCREMENTAL=1" >> $GITHUB_ENV
           
+          # Optimize Cargo build settings for RISC-V
+          # Use all available CPU cores for parallel compilation
+          echo "CARGO_BUILD_JOBS=$(nproc || echo 4)" >> $GITHUB_ENV
+          echo "CARGO_TERM_PROGRESS_WHEN=always" >> $GITHUB_ENV
+          echo "CARGO_TERM_PROGRESS_WIDTH=80" >> $GITHUB_ENV
+          
+          # Network settings for better reliability
+          echo "CARGO_NET_RETRY=10" >> $GITHUB_ENV
+          echo "CARGO_HTTP_TIMEOUT=300" >> $GITHUB_ENV
+          
           # Don't set CARGO_TARGET_DIR to allow Tauri to use default location
           # This makes release file paths predictable
           unset CARGO_TARGET_DIR || true
@@ -216,26 +226,24 @@ jobs:
         run: |
           npm run prebuild || echo "Warning: prebuild failed, continuing..."
 
-      - name: Build frontend
+      - name: Build Tauri application
+        timeout-minutes: 120
         env:
           NODE_OPTIONS: "--max-old-space-size=2048"
         run: |
-          # Use node with V8 options to disable TurboFan but keep WebAssembly
-          # --max-opt=2 means use Maglev compiler (tier 2), skip TurboFan (tier 3)
-          # This should avoid TurboFan crashes while keeping WebAssembly support
-          echo "Building frontend with --max-opt=2 (Maglev compiler, skip TurboFan)..."
-          # Run TypeScript check first
-          node --max-opt=2 node_modules/.bin/tsc --noEmit
-          # Then build with Vite
-          node --max-opt=2 node_modules/.bin/vite build
-
-      - name: Build Tauri application
-        run: |
           # Build Tauri app with only deb and rpm bundles (skip appimage for RISC-V)
           # AppImage doesn't support RISC-V architecture
-          # Use fast-release profile for faster builds (极致速度组合)
-          # Note: Tauri uses CARGO_TARGET_DIR if set, but outputs to src-tauri/target
-          # We'll use default location for simplicity, but cache will speed up builds
+          # Use fast-release profile for faster builds (optimized for speed)
+          # Note: Tauri's beforeBuildCommand will build frontend automatically
+          # We skip the separate frontend build step to avoid duplicate builds
+          echo "Starting Tauri build for RISC-V..."
+          echo "Build will use fast-release profile (optimized for speed)"
+          echo "Frontend will be built automatically by Tauri's beforeBuildCommand"
+          echo "Using ${CARGO_BUILD_JOBS:-4} parallel jobs for Cargo compilation"
+          echo "Build timeout: 120 minutes"
+          
+          # Build with progress monitoring
+          # Cargo environment variables are already set in the Rust installation step
           npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm -- --profile fast-release
           
           # Verify build output

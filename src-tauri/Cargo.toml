@@ -153,12 +153,14 @@ rpath = false
 
 [profile.fast-release]
 inherits = "release"
-codegen-units = 64
+codegen-units = 256  # More units for faster compilation (less optimization per unit)
 incremental = true
 lto = false
-opt-level = 0
-debug = true
+opt-level = 2  # Level 2 optimization: good balance between speed and binary size
+debug = false  # No debug info for faster builds
 strip = false
+overflow-checks = false
+rpath = false
 
 [lib]
 name = "app_lib"
