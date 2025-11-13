@@ -264,6 +264,22 @@ jobs:
           
           echo "Generated changelog:"
           echo "$CHANGELOG"
+          
+      - name: Format build date
+        id: build_date
+        run: |
+          # Format build date in a readable format
+          # Try to use UTC timezone for consistency
+          if [ -n "${{ github.event.head_commit.timestamp }}" ]; then
+            # Parse and format the timestamp (Linux date command)
+            BUILD_DATE=$(date -u -d "${{ github.event.head_commit.timestamp }}" "+%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || echo "${{ github.event.head_commit.timestamp }}")
+          else
+            # Fallback to current time
+            BUILD_DATE=$(date -u "+%Y-%m-%d %H:%M:%S UTC")
+          fi
+          
+          echo "date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "Formatted build date: $BUILD_DATE"
 
       - name: Run prebuild
         run: |
@@ -316,33 +332,34 @@ jobs:
           # Create release files list
           RELEASE_FILES=()
           
-          # Binary file
-          if [ -f "$RELEASE_DIR/rv-verge" ]; then
-            RELEASE_FILES+=("$RELEASE_DIR/rv-verge")
-            echo "✓ Found binary: $RELEASE_DIR/rv-verge"
-          else
-            echo "✗ Binary not found: $RELEASE_DIR/rv-verge"
-          fi
+          # Get current version for filtering
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
           
           # DEB packages - rename to include system name (linux) before architecture
+          # Only include packages with current version
           if [ -d "$RELEASE_DIR/bundle/deb" ]; then
             for file in "$RELEASE_DIR/bundle/deb"/*.deb; do
               if [ -f "$file" ]; then
-                # Rename package: RV.Verge_0.1.74_riscv64.deb -> RV.Verge_0.1.74_linux_riscv64.deb
-                # Pattern: RV.Verge_VERSION_ARCH.deb -> RV.Verge_VERSION_linux_ARCH.deb
-                DIR=$(dirname "$file")
                 FILENAME=$(basename "$file")
-                # Match pattern: _VERSION_ARCH.deb and insert _linux before ARCH
-                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.deb$/_\1_linux_\2.deb/')
-                NEW_FILE="$DIR/$NEW_FILENAME"
-                
-                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
-                  mv "$file" "$NEW_FILE"
-                  echo "✓ Renamed DEB: $FILENAME -> $NEW_FILENAME"
-                  RELEASE_FILES+=("$NEW_FILE")
+                # Check if file contains current version
+                if echo "$FILENAME" | grep -q "_${CURRENT_VERSION}_"; then
+                  # Rename package: RV.Verge_0.1.74_riscv64.deb -> RV.Verge_0.1.74_linux_riscv64.deb
+                  # Pattern: RV.Verge_VERSION_ARCH.deb -> RV.Verge_VERSION_linux_ARCH.deb
+                  DIR=$(dirname "$file")
+                  # Match pattern: _VERSION_ARCH.deb and insert _linux before ARCH
+                  NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.deb$/_\1_linux_\2.deb/')
+                  NEW_FILE="$DIR/$NEW_FILENAME"
+                  
+                  if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                    mv "$file" "$NEW_FILE"
+                    echo "✓ Renamed DEB: $FILENAME -> $NEW_FILENAME"
+                    RELEASE_FILES+=("$NEW_FILE")
+                  else
+                    RELEASE_FILES+=("$file")
+                    echo "✓ Found DEB: $FILENAME"
+                  fi
                 else
-                  RELEASE_FILES+=("$file")
-                  echo "✓ Found DEB: $FILENAME"
+                  echo "⚠ Skipping DEB with different version: $FILENAME"
                 fi
               fi
             done
@@ -351,25 +368,31 @@ jobs:
           fi
           
           # RPM packages - rename to include system name (linux) before architecture
+          # Only include packages with current version
           if [ -d "$RELEASE_DIR/bundle/rpm" ]; then
             for file in "$RELEASE_DIR/bundle/rpm"/*.rpm; do
               if [ -f "$file" ]; then
-                # Rename package: RV.Verge-0.1.74-1.riscv64.rpm -> RV.Verge-0.1.74-1.linux.riscv64.rpm
-                # Pattern: name-VERSION-RELEASE.ARCH.rpm -> name-VERSION-RELEASE.linux.ARCH.rpm
-                DIR=$(dirname "$file")
                 FILENAME=$(basename "$file")
-                # Match pattern: .ARCH.rpm and insert .linux before ARCH
-                # This handles both .riscv64.rpm and .ARCH.rpm formats
-                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/\.([a-z0-9]+)\.rpm$/.linux.\1.rpm/')
-                NEW_FILE="$DIR/$NEW_FILENAME"
-                
-                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
-                  mv "$file" "$NEW_FILE"
-                  echo "✓ Renamed RPM: $FILENAME -> $NEW_FILENAME"
-                  RELEASE_FILES+=("$NEW_FILE")
+                # Check if file contains current version
+                if echo "$FILENAME" | grep -q "-${CURRENT_VERSION}-"; then
+                  # Rename package: RV.Verge-0.1.74-1.riscv64.rpm -> RV.Verge-0.1.74-1.linux.riscv64.rpm
+                  # Pattern: name-VERSION-RELEASE.ARCH.rpm -> name-VERSION-RELEASE.linux.ARCH.rpm
+                  DIR=$(dirname "$file")
+                  # Match pattern: .ARCH.rpm and insert .linux before ARCH
+                  # This handles both .riscv64.rpm and .ARCH.rpm formats
+                  NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/\.([a-z0-9]+)\.rpm$/.linux.\1.rpm/')
+                  NEW_FILE="$DIR/$NEW_FILENAME"
+                  
+                  if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                    mv "$file" "$NEW_FILE"
+                    echo "✓ Renamed RPM: $FILENAME -> $NEW_FILENAME"
+                    RELEASE_FILES+=("$NEW_FILE")
+                  else
+                    RELEASE_FILES+=("$file")
+                    echo "✓ Found RPM: $FILENAME"
+                  fi
                 else
-                  RELEASE_FILES+=("$file")
-                  echo "✓ Found RPM: $FILENAME"
+                  echo "⚠ Skipping RPM with different version: $FILENAME"
                 fi
               fi
             done
@@ -407,7 +430,7 @@ jobs:
           body: |
             ## RV Verge v${{ steps.version.outputs.version }}
             
-            **Build Date:** ${{ github.event.head_commit.timestamp }}
+            **Build Date:** ${{ steps.build_date.outputs.date }}
             **Commit:** ${{ github.sha }}
             
             ${{ steps.changelog.outputs.changelog }}
@@ -420,7 +443,6 @@ jobs:
             - **Built on:** Self-hosted RISCV64 runner
             - **DEB Package:** For Debian/Ubuntu based systems
             - **RPM Package:** For Red Hat/Fedora based systems
-            - **Binary:** Standalone executable
             
             #### macOS
             
@@ -432,6 +454,7 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: false
           generate_release_notes: false
+          append_body: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
@@ -439,7 +462,5 @@ jobs:
         with:
           name: rv-verge-riscv64
           path: |
-            src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/rv-verge
             src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge
             src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/

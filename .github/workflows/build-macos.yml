@@ -134,6 +134,25 @@ jobs:
           
           echo "Generated changelog:"
           echo "$CHANGELOG"
+          
+      - name: Format build date
+        id: build_date
+        run: |
+          # Format build date in a readable format (macOS date command)
+          # Try to use UTC timezone for consistency
+          if [ -n "${{ github.event.head_commit.timestamp }}" ]; then
+            # Parse and format the timestamp (macOS uses -j and -f)
+            # Format: 2025-11-13T13:12:23+08:00 -> 2025-11-13 05:12:23 UTC
+            TIMESTAMP="${{ github.event.head_commit.timestamp }}"
+            # Remove timezone offset and convert to UTC format
+            BUILD_DATE=$(date -u -j -f "%Y-%m-%dT%H:%M:%S%z" "$TIMESTAMP" "+%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || date -u -j -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP%%+*}" "+%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || echo "$TIMESTAMP")
+          else
+            # Fallback to current time
+            BUILD_DATE=$(date -u "+%Y-%m-%d %H:%M:%S UTC")
+          fi
+          
+          echo "date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "Formatted build date: $BUILD_DATE"
 
       - name: Run prebuild
         run: |
@@ -230,7 +249,7 @@ jobs:
           body: |
             ## RV Verge v${{ steps.version.outputs.version }}
             
-            **Build Date:** ${{ github.event.head_commit.timestamp }}
+            **Build Date:** ${{ steps.build_date.outputs.date }}
             **Commit:** ${{ github.sha }}
             
             ${{ steps.changelog.outputs.changelog }}
