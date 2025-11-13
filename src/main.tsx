@@ -90,8 +90,8 @@ const initializeApp = () => {
   }
 };
 
-// Initialize language (default to Chinese)
-initializeLanguage("zh")
+// Initialize language (default to English)
+initializeLanguage("en")
   .then(() => {
     console.log("[main.tsx] Language initialized successfully");
     initializeApp();

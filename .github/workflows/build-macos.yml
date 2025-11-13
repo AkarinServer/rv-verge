@@ -58,7 +58,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - name: Install project dependencies
         run: |
@@ -91,6 +91,49 @@ jobs:
           # Update Cargo.toml version
           sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
           echo "Updated Cargo.toml version to $VERSION"
+          
+          # Update tauri.conf.json version (required for correct package naming)
+          node -e "
+            const fs = require('fs');
+            const tauriConfig = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tauriConfig.version = '$VERSION';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tauriConfig, null, 2) + '\n');
+            console.log('Updated tauri.conf.json version to', tauriConfig.version);
+          "
+          
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous release tag
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag, get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            CHANGELOG="## What's Changed
+          
+          No significant changes in this release."
+          else
+            CHANGELOG="## What's Changed
+          
+          $COMMITS"
+          fi
+          
+          # Output changelog (escape newlines for GitHub Actions)
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
 
       - name: Run prebuild
         run: |
@@ -105,11 +148,6 @@ jobs:
           # but we build it here explicitly to ensure it's ready
           npm run tauri build -- --target aarch64-apple-darwin -- --profile fast-release
 
-      - name: Build Tauri application (x64)
-        run: |
-          # Use fast-release profile for faster builds (极致速度组合)
-          npm run tauri build -- --target x86_64-apple-darwin -- --profile fast-release || echo "x64 build skipped (may not be available)"
-
       - name: Prepare release files
         id: release_files
         run: |
@@ -117,113 +155,50 @@ jobs:
           # Note: We use fast-release profile, so files are in fast-release directory
           RELEASE_FILES=()
           
-          # ARM64 DMG (fast-release profile)
+          # ARM64 DMG (fast-release profile) - rename to include system name (macos)
           if [ -d "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/dmg" ]; then
             for file in src-tauri/target/aarch64-apple-darwin/fast-release/bundle/dmg/*.dmg; do
               if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found ARM64 DMG: $(basename "$file")"
+                # Rename: RV.Verge_0.1.74_aarch64.dmg -> RV.Verge_0.1.74_macos_aarch64.dmg
+                DIR=$(dirname "$file")
+                FILENAME=$(basename "$file")
+                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.dmg$/_\1_macos_\2.dmg/')
+                NEW_FILE="$DIR/$NEW_FILENAME"
+                
+                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                  mv "$file" "$NEW_FILE"
+                  echo "✓ Renamed ARM64 DMG: $FILENAME -> $NEW_FILENAME"
+                  RELEASE_FILES+=("$NEW_FILE")
+                else
+                  RELEASE_FILES+=("$file")
+                  echo "✓ Found ARM64 DMG: $FILENAME"
+                fi
               fi
             done
           elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg" ]; then
             # Fallback to release profile
             for file in src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg; do
               if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found ARM64 DMG: $(basename "$file")"
+                # Rename: RV.Verge_0.1.74_aarch64.dmg -> RV.Verge_0.1.74_macos_aarch64.dmg
+                DIR=$(dirname "$file")
+                FILENAME=$(basename "$file")
+                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.dmg$/_\1_macos_\2.dmg/')
+                NEW_FILE="$DIR/$NEW_FILENAME"
+                
+                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                  mv "$file" "$NEW_FILE"
+                  echo "✓ Renamed ARM64 DMG: $FILENAME -> $NEW_FILENAME"
+                  RELEASE_FILES+=("$NEW_FILE")
+                else
+                  RELEASE_FILES+=("$file")
+                  echo "✓ Found ARM64 DMG: $FILENAME"
+                fi
               fi
             done
           else
             echo "✗ ARM64 DMG directory not found"
           fi
           
-          # ARM64 macOS app (zip it for release)
-          if [ -d "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos" ]; then
-            for file in src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos/*.app; do
-              if [ -d "$file" ]; then
-                # Create zip file for .app bundle
-                APP_NAME=$(basename "$file" .app)
-                ZIP_FILE="src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos/${APP_NAME}-aarch64.zip"
-                cd "src-tauri/target/aarch64-apple-darwin/fast-release/bundle/macos"
-                zip -r "${APP_NAME}-aarch64.zip" "${APP_NAME}.app" || true
-                cd - > /dev/null
-                if [ -f "$ZIP_FILE" ]; then
-                  RELEASE_FILES+=("$ZIP_FILE")
-                  echo "✓ Found ARM64 ZIP: $(basename "$ZIP_FILE")"
-                fi
-              fi
-            done
-          elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" ]; then
-            # Fallback to release profile
-            for file in src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app; do
-              if [ -d "$file" ]; then
-                # Create zip file for .app bundle
-                APP_NAME=$(basename "$file" .app)
-                ZIP_FILE="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/${APP_NAME}-aarch64.zip"
-                cd "src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
-                zip -r "${APP_NAME}-aarch64.zip" "${APP_NAME}.app" || true
-                cd - > /dev/null
-                if [ -f "$ZIP_FILE" ]; then
-                  RELEASE_FILES+=("$ZIP_FILE")
-                  echo "✓ Found ARM64 ZIP: $(basename "$ZIP_FILE")"
-                fi
-              fi
-            done
-          else
-            echo "✗ ARM64 app directory not found"
-          fi
-          
-          # x64 DMG (if available, fast-release profile)
-          if [ -d "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/dmg" ]; then
-            for file in src-tauri/target/x86_64-apple-darwin/fast-release/bundle/dmg/*.dmg; do
-              if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found x64 DMG: $(basename "$file")"
-              fi
-            done
-          elif [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg" ]; then
-            # Fallback to release profile
-            for file in src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
-              if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found x64 DMG: $(basename "$file")"
-              fi
-            done
-          fi
-          
-          # x64 macOS app (if available, fast-release profile)
-          if [ -d "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos" ]; then
-            for file in src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos/*.app; do
-              if [ -d "$file" ]; then
-                # Create zip file for .app bundle
-                APP_NAME=$(basename "$file" .app)
-                ZIP_FILE="src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos/${APP_NAME}-x64.zip"
-                cd "src-tauri/target/x86_64-apple-darwin/fast-release/bundle/macos"
-                zip -r "${APP_NAME}-x64.zip" "${APP_NAME}.app" || true
-                cd - > /dev/null
-                if [ -f "$ZIP_FILE" ]; then
-                  RELEASE_FILES+=("$ZIP_FILE")
-                  echo "✓ Found x64 ZIP: $(basename "$ZIP_FILE")"
-                fi
-              fi
-            done
-          elif [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" ]; then
-            # Fallback to release profile
-            for file in src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app; do
-              if [ -d "$file" ]; then
-                # Create zip file for .app bundle
-                APP_NAME=$(basename "$file" .app)
-                ZIP_FILE="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/${APP_NAME}-x64.zip"
-                cd "src-tauri/target/x86_64-apple-darwin/release/bundle/macos"
-                zip -r "${APP_NAME}-x64.zip" "${APP_NAME}.app" || true
-                cd - > /dev/null
-                if [ -f "$ZIP_FILE" ]; then
-                  RELEASE_FILES+=("$ZIP_FILE")
-                  echo "✓ Found x64 ZIP: $(basename "$ZIP_FILE")"
-                fi
-              fi
-            done
-          fi
           
           # Check if files exist
           if [ ${#RELEASE_FILES[@]} -eq 0 ]; then
@@ -258,7 +233,11 @@ jobs:
             **Build Date:** ${{ github.event.head_commit.timestamp }}
             **Commit:** ${{ github.sha }}
             
-            ### RISC-V (Linux)
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Downloads
+            
+            #### RISC-V (Linux)
             
             - **Architecture:** RISCV64 (riscv64gc-unknown-linux-gnu)
             - **Built on:** Self-hosted RISCV64 runner
@@ -266,12 +245,11 @@ jobs:
             - **RPM Package:** For Red Hat/Fedora based systems
             - **Binary:** Standalone executable
             
-            ### macOS
+            #### macOS
             
-            - **Architecture:** ARM64 (Apple Silicon) and x64 (Intel)
+            - **Architecture:** ARM64 (Apple Silicon)
             - **Built on:** GitHub Actions macOS runner
             - **DMG:** Disk image for easy installation
-            - **App:** macOS application bundle (zip)
           files: ${{ steps.release_files.outputs.files }}
           draft: false
           prerelease: false
@@ -286,6 +264,4 @@ jobs:
           name: rv-verge-macos
           path: |
             src-tauri/target/aarch64-apple-darwin/fast-release/bundle/
-            src-tauri/target/x86_64-apple-darwin/fast-release/bundle/
             src-tauri/target/aarch64-apple-darwin/release/bundle/
-            src-tauri/target/x86_64-apple-darwin/release/bundle/

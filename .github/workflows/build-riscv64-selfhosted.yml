@@ -209,6 +209,40 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION (based on commit count: $COMMIT_COUNT)"
           
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous release tag
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag, get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            CHANGELOG="## What's Changed
+          
+          No significant changes in this release."
+          else
+            CHANGELOG="## What's Changed
+          
+          $COMMITS"
+          fi
+          
+          # Output changelog (escape newlines for GitHub Actions)
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
+          
           # Update package.json and Cargo.toml with new version (构建前更新版本)
           node -e "
             const fs = require('fs');
@@ -221,6 +255,15 @@ jobs:
           # Update Cargo.toml version
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
           echo "Updated Cargo.toml version to $VERSION"
+          
+          # Update tauri.conf.json version (required for correct package naming)
+          node -e "
+            const fs = require('fs');
+            const tauriConfig = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tauriConfig.version = '$VERSION';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tauriConfig, null, 2) + '\n');
+            console.log('Updated tauri.conf.json version to', tauriConfig.version);
+          "
 
       - name: Run prebuild
         run: |
@@ -281,24 +324,53 @@ jobs:
             echo "✗ Binary not found: $RELEASE_DIR/rv-verge"
           fi
           
-          # DEB packages
+          # DEB packages - rename to include system name (linux) before architecture
           if [ -d "$RELEASE_DIR/bundle/deb" ]; then
             for file in "$RELEASE_DIR/bundle/deb"/*.deb; do
               if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found DEB: $(basename "$file")"
+                # Rename package: RV.Verge_0.1.74_riscv64.deb -> RV.Verge_0.1.74_linux_riscv64.deb
+                # Pattern: RV.Verge_VERSION_ARCH.deb -> RV.Verge_VERSION_linux_ARCH.deb
+                DIR=$(dirname "$file")
+                FILENAME=$(basename "$file")
+                # Match pattern: _VERSION_ARCH.deb and insert _linux before ARCH
+                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.deb$/_\1_linux_\2.deb/')
+                NEW_FILE="$DIR/$NEW_FILENAME"
+                
+                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                  mv "$file" "$NEW_FILE"
+                  echo "✓ Renamed DEB: $FILENAME -> $NEW_FILENAME"
+                  RELEASE_FILES+=("$NEW_FILE")
+                else
+                  RELEASE_FILES+=("$file")
+                  echo "✓ Found DEB: $FILENAME"
+                fi
               fi
             done
           else
             echo "✗ DEB directory not found: $RELEASE_DIR/bundle/deb"
           fi
           
-          # RPM packages
+          # RPM packages - rename to include system name (linux) before architecture
           if [ -d "$RELEASE_DIR/bundle/rpm" ]; then
             for file in "$RELEASE_DIR/bundle/rpm"/*.rpm; do
               if [ -f "$file" ]; then
-                RELEASE_FILES+=("$file")
-                echo "✓ Found RPM: $(basename "$file")"
+                # Rename package: RV.Verge-0.1.74-1.riscv64.rpm -> RV.Verge-0.1.74-1.linux.riscv64.rpm
+                # Pattern: name-VERSION-RELEASE.ARCH.rpm -> name-VERSION-RELEASE.linux.ARCH.rpm
+                DIR=$(dirname "$file")
+                FILENAME=$(basename "$file")
+                # Match pattern: .ARCH.rpm and insert .linux before ARCH
+                # This handles both .riscv64.rpm and .ARCH.rpm formats
+                NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/\.([a-z0-9]+)\.rpm$/.linux.\1.rpm/')
+                NEW_FILE="$DIR/$NEW_FILENAME"
+                
+                if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                  mv "$file" "$NEW_FILE"
+                  echo "✓ Renamed RPM: $FILENAME -> $NEW_FILENAME"
+                  RELEASE_FILES+=("$NEW_FILE")
+                else
+                  RELEASE_FILES+=("$file")
+                  echo "✓ Found RPM: $FILENAME"
+                fi
               fi
             done
           else
@@ -338,7 +410,11 @@ jobs:
             **Build Date:** ${{ github.event.head_commit.timestamp }}
             **Commit:** ${{ github.sha }}
             
-            ### RISC-V (Linux)
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Downloads
+            
+            #### RISC-V (Linux)
             
             - **Architecture:** RISCV64 (riscv64gc-unknown-linux-gnu)
             - **Built on:** Self-hosted RISCV64 runner
@@ -346,12 +422,11 @@ jobs:
             - **RPM Package:** For Red Hat/Fedora based systems
             - **Binary:** Standalone executable
             
-            ### macOS
+            #### macOS
             
-            - **Architecture:** ARM64 (Apple Silicon) and x64 (Intel)
+            - **Architecture:** ARM64 (Apple Silicon)
             - **Built on:** GitHub Actions macOS runner
             - **DMG:** Disk image for easy installation
-            - **App:** macOS application bundle (zip)
           files: ${{ steps.release_files.outputs.files }}
           draft: false
           prerelease: false

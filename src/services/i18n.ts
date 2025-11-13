@@ -3,7 +3,7 @@ import { initReactI18next } from "react-i18next";
 
 export const supportedLanguages = ["en", "zh"];
 
-const FALLBACK_LANGUAGE = "zh";
+const FALLBACK_LANGUAGE = "en";
 
 type LocaleModule = {
   default: Record<string, unknown>;
@@ -54,8 +54,8 @@ export const loadLanguage = async (language: string) => {
 
 i18n.use(initReactI18next).init({
   resources: {},
-  lng: "zh",
-  fallbackLng: "zh",
+  lng: "en",
+  fallbackLng: "en",
   interpolation: {
     escapeValue: false,
   },
@@ -70,6 +70,6 @@ export const changeLanguage = async (language: string) => {
   await i18n.changeLanguage(language);
 };
 
-export const initializeLanguage = async (initialLanguage: string = "zh") => {
+export const initializeLanguage = async (initialLanguage: string = "en") => {
   await changeLanguage(initialLanguage);
 };
