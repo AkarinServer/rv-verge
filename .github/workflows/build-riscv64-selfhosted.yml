@@ -240,15 +240,23 @@ jobs:
           
           # Verify build output
           echo "Build output verification:"
+          ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/ 2>/dev/null || echo "Fast-release directory not found"
+          ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || echo "Bundle directory not found"
+          # Also check release directory as fallback
           ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/ 2>/dev/null || echo "Release directory not found"
-          ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/ 2>/dev/null || echo "Bundle directory not found"
 
       - name: Prepare release files
         id: release_files
         run: |
           # Find all release files (修复release文件上传问题)
           # Tauri builds to src-tauri/target regardless of CARGO_TARGET_DIR
-          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          # Use fast-release directory first (since we use --profile fast-release)
+          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release"
+          
+          # Fallback to release directory if fast-release doesn't exist
+          if [ ! -d "$RELEASE_DIR" ]; then
+            RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          fi
           
           echo "Checking release directory: $RELEASE_DIR"
           ls -la "$RELEASE_DIR/" 2>/dev/null || echo "Release directory not found"
@@ -348,5 +356,7 @@ jobs:
         with:
           name: rv-verge-riscv64
           path: |
+            src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/rv-verge
+            src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/
             src-tauri/target/riscv64gc-unknown-linux-gnu/release/rv-verge
             src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/
