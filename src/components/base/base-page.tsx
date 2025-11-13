@@ -10,10 +10,11 @@ interface Props {
   contentStyle?: React.CSSProperties;
   children?: ReactNode;
   full?: boolean;
+  showHeader?: boolean; // 控制是否显示顶栏
 }
 
 export const BasePage: React.FC<Props> = (props) => {
-  const { title, header, contentStyle, full, children } = props;
+  const { title, header, contentStyle, full, children, showHeader = false } = props;
   const theme = useTheme();
 
   const isDark = theme.palette.mode === "dark";
@@ -21,16 +22,18 @@ export const BasePage: React.FC<Props> = (props) => {
   return (
     <BaseErrorBoundary>
       <div className="base-page">
-        <header data-tauri-drag-region="true" style={{ userSelect: "none" }}>
-          <Typography
-            sx={{ fontSize: "20px", fontWeight: "700" }}
-            data-tauri-drag-region="true"
-          >
-            {title}
-          </Typography>
+        {showHeader && (
+          <header data-tauri-drag-region="true" style={{ userSelect: "none" }}>
+            <Typography
+              sx={{ fontSize: "20px", fontWeight: "700" }}
+              data-tauri-drag-region="true"
+            >
+              {title}
+            </Typography>
 
-          {header}
-        </header>
+            {header}
+          </header>
+        )}
 
         <div
           className={full ? "base-container no-padding" : "base-container"}
@@ -41,7 +44,15 @@ export const BasePage: React.FC<Props> = (props) => {
               backgroundColor: isDark ? "#1e1f27" : "var(--background-color)",
             }}
           >
-            <div className="base-content" style={contentStyle}>
+            <div 
+              className="base-content" 
+              style={{
+                ...contentStyle,
+                /* 确保 overflow 设置不被覆盖 */
+                overflowY: "auto",
+                overflowX: "hidden",
+              }}
+            >
               {children}
             </div>
           </section>

@@ -1,0 +1,47 @@
+{
+  "page": {
+    "title": "订阅",
+    "profilesList": "配置文件列表",
+    "noProfiles": "暂无配置文件，请先导入订阅"
+  },
+  "import": {
+    "title": "导入订阅",
+    "description": "输入订阅链接 URL 来导入配置文件",
+    "clickToImport": "点击导入订阅",
+    "placeholder": "输入订阅链接，例如: https://example.com/subscription",
+    "paste": "从剪贴板粘贴",
+    "import": "导入",
+    "importing": "导入中...",
+    "errors": {
+      "emptyUrl": "请输入订阅链接",
+      "invalidUrl": "无效的 URL，请确保以 http:// 或 https:// 开头",
+      "importFailed": "导入失败: {{error}}"
+    }
+  },
+  "item": {
+    "unnamed": "未命名",
+    "type": "类型",
+    "type.remote": "远程",
+    "type.local": "本地",
+    "type.merge": "合并",
+    "type.script": "脚本",
+    "type.unknown": "未知",
+    "lastUpdated": "最后更新",
+    "neverUpdated": "从未更新",
+    "url": "URL"
+  },
+  "actions": {
+    "switch": "切换",
+    "delete": "删除",
+    "edit": "编辑"
+  },
+  "delete": {
+    "confirm": "确定要删除配置文件 \"{{name}}\" 吗？此操作不可撤销。"
+  },
+  "shared": {
+    "actions": {
+      "cancel": "取消"
+    }
+  }
+}
+

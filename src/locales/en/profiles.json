@@ -1,0 +1,47 @@
+{
+  "page": {
+    "title": "Profiles",
+    "profilesList": "Profiles List",
+    "noProfiles": "No profiles yet, please import a subscription first"
+  },
+  "import": {
+    "title": "Import Subscription",
+    "description": "Enter a subscription URL to import a profile",
+    "clickToImport": "Click to import subscription",
+    "placeholder": "Enter subscription URL, e.g.: https://example.com/subscription",
+    "paste": "Paste from clipboard",
+    "import": "Import",
+    "importing": "Importing...",
+    "errors": {
+      "emptyUrl": "Please enter a subscription URL",
+      "invalidUrl": "Invalid URL, please ensure it starts with http:// or https://",
+      "importFailed": "Import failed: {{error}}"
+    }
+  },
+  "item": {
+    "unnamed": "Unnamed",
+    "type": "Type",
+    "type.remote": "Remote",
+    "type.local": "Local",
+    "type.merge": "Merge",
+    "type.script": "Script",
+    "type.unknown": "Unknown",
+    "lastUpdated": "Last Updated",
+    "neverUpdated": "Never Updated",
+    "url": "URL"
+  },
+  "actions": {
+    "switch": "Switch",
+    "delete": "Delete",
+    "edit": "Edit"
+  },
+  "delete": {
+    "confirm": "Are you sure you want to delete profile \"{{name}}\"? This action cannot be undone."
+  },
+  "shared": {
+    "actions": {
+      "cancel": "Cancel"
+    }
+  }
+}
+

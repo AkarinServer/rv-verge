@@ -6,12 +6,12 @@ authors = ["RV Verge Team"]
 license = "GPL-3.0-only"
 repository = "https://github.com/AkarinServer/rv-verge"
 default-run = "rv-verge"
-edition = "2021"
+edition = "2024"
 build = "build.rs"
 rust-version = "1.91"
 
 [package.metadata.bundle]
-identifier = "io.github.rv-verge.rv-verge"
+identifier = "io.github.AkarinServer.rv-verge"
 
 [build-dependencies]
 tauri-build = { version = "2.5.1", features = [] }
@@ -66,7 +66,7 @@ getrandom = "0.3.4"
 futures = "0.3.31"
 sys-locale = "0.3.2"
 libc = "0.2.177"
-gethostname = "1.0.0"
+gethostname = "1.1.0"
 scopeguard = "1.2.0"
 tauri-plugin-notification = "2.3.3"
 tokio-stream = "0.1.17"
@@ -153,29 +153,88 @@ rpath = false
 
 [profile.fast-release]
 inherits = "release"
-codegen-units = 256  # More units for faster compilation (less optimization per unit)
+codegen-units = 64
 incremental = true
 lto = false
-opt-level = 2  # Level 2 optimization: good balance between speed and binary size
-debug = false  # No debug info for faster builds
+opt-level = 0
+debug = true
 strip = false
-overflow-checks = false
-rpath = false
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bench]]
+name = "draft_benchmark"
+path = "benches/draft_benchmark.rs"
+harness = false
+
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["async_tokio"] }
 
 [lints.clippy]
+# Core categories - most important for code safety and correctness
 correctness = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
+
+# Critical safety lints - warn for now due to extensive existing usage
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "deny"
 unimplemented = "deny"
+
+# Development quality lints
 todo = "warn"
 dbg_macro = "warn"
+
+# Performance lints for proxy application
+clone_on_ref_ptr = "warn"
+rc_clone_in_vec_init = "warn"
+large_stack_arrays = "warn"
+large_const_arrays = "warn"
+
+# Mutex and async lints - strict control
+async_yields_async = "deny"
+mutex_atomic = "deny"
+mutex_integer = "deny"
+rc_mutex = "deny"
+unused_async = "deny"
+await_holding_lock = "deny"
+large_futures = "deny"
+future_not_send = "deny"
+
+# Common style improvements
+redundant_else = "deny"
+needless_continue = "deny"
+needless_raw_string_hashes = "deny"
+
+or_fun_call = "deny"
+cognitive_complexity = "deny"
+useless_let_if_seq = "deny"
+use_self = "deny"
+tuple_array_conversions = "deny"
+trait_duplication_in_bounds = "deny"
+suspicious_operation_groupings = "deny"
+string_lit_as_bytes = "deny"
+significant_drop_tightening = "deny"
+significant_drop_in_scrutinee = "deny"
+redundant_clone = "deny"
+needless_pass_by_ref_mut = "deny"
+needless_collect = "deny"
+missing_const_for_fn = "deny"
+iter_with_drain = "deny"
+iter_on_single_items = "deny"
+iter_on_empty_collections = "deny"
+equatable_if_let = "deny"
+collection_is_never_read = "deny"
+branches_sharing_code = "deny"
+pathbuf_init_then_push = "deny"
+option_as_ref_cloned = "deny"
+large_types_passed_by_value = "deny"
+expl_impl_clone_on_copy = "deny"
+copy_iterator = "deny"
+cloned_instead_of_copied = "deny"
+unnecessary_self_imports = "deny"
+unused_trait_names = "deny"
+wildcard_imports = "deny"
 

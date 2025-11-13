@@ -31,6 +31,51 @@
         "noActiveNode": "暂无激活的代理节点"
       }
     },
+    "trafficGraph": {
+      "title": "流量监控"
+    },
+    "trafficStats": {
+      "labels": {
+        "download": "下载速度",
+        "upload": "上传速度"
+      }
+    },
+    "ipInfo": {
+      "title": "IP 信息",
+      "labels": {
+        "ip": "IP 地址",
+        "country": "国家",
+        "region": "地区",
+        "city": "城市",
+        "isp": "ISP",
+        "org": "组织",
+        "asn": "ASN",
+        "location": "位置",
+        "timezone": "时区",
+        "unknown": "未知",
+        "autoRefresh": "自动刷新"
+      },
+      "errors": {
+        "load": "加载 IP 信息失败"
+      },
+      "loading": "加载中..."
+    },
+    "profileCard": {
+      "title": "配置文件",
+      "labels": {
+        "from": "来源",
+        "updated": "更新时间",
+        "traffic": "流量",
+        "expire": "过期时间",
+        "noProfile": "暂无配置文件"
+      },
+      "actions": {
+        "manage": "管理",
+        "import": "导入",
+        "update": "更新",
+        "updating": "更新中..."
+      }
+    },
     "clashInfo": {
       "title": "Clash 信息",
       "fields": {

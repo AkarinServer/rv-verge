@@ -1,0 +1,101 @@
+{
+  "page": {
+    "title": "Home",
+    "cards": {
+      "proxyMode": "Proxy Mode"
+    }
+  },
+  "components": {
+    "clashMode": {
+      "errors": {
+        "communication": "Core communication error"
+      },
+      "labels": {
+        "rule": "Rule",
+        "global": "Global",
+        "direct": "Direct"
+      },
+      "descriptions": {
+        "rule": "Intelligently determine traffic routing based on preset rules, providing flexible proxy strategies",
+        "global": "All traffic goes through proxy servers, suitable for scenarios requiring global internet access",
+        "direct": "All traffic bypasses proxy nodes but goes through Clash core for forwarding, suitable for specific scenarios requiring core-based traffic splitting"
+      }
+    },
+    "currentProxy": {
+      "title": "Current Node",
+      "labels": {
+        "globalMode": "Global Mode",
+        "directMode": "Direct Mode",
+        "group": "Proxy Group",
+        "proxy": "Node",
+        "noActiveNode": "No active proxy node"
+      }
+    },
+    "trafficGraph": {
+      "title": "Traffic Monitor"
+    },
+    "trafficStats": {
+      "labels": {
+        "download": "Download Speed",
+        "upload": "Upload Speed"
+      }
+    },
+    "ipInfo": {
+      "title": "IP Info",
+      "labels": {
+        "ip": "IP Address",
+        "country": "Country",
+        "region": "Region",
+        "city": "City",
+        "isp": "ISP",
+        "org": "Organization",
+        "asn": "ASN",
+        "location": "Location",
+        "timezone": "Timezone",
+        "unknown": "Unknown",
+        "autoRefresh": "Auto Refresh"
+      },
+      "errors": {
+        "load": "Failed to load IP info"
+      },
+      "loading": "Loading..."
+    },
+    "profileCard": {
+      "title": "Profile",
+      "labels": {
+        "from": "From",
+        "updated": "Updated",
+        "traffic": "Traffic",
+        "expire": "Expire",
+        "noProfile": "No profile"
+      },
+      "actions": {
+        "manage": "Manage",
+        "import": "Import",
+        "update": "Update",
+        "updating": "Updating..."
+      }
+    },
+    "clashInfo": {
+      "title": "Clash Info",
+      "fields": {
+        "coreVersion": "Core Version",
+        "systemProxyAddress": "System Proxy Address",
+        "mixedPort": "Mixed Proxy Port",
+        "uptime": "Uptime",
+        "rulesCount": "Rules Count"
+      }
+    },
+    "systemInfo": {
+      "title": "System Info",
+      "fields": {
+        "osInfo": "Operating System Info",
+        "autoLaunch": "Auto Launch",
+        "runningMode": "Running Mode",
+        "lastCheckUpdate": "Last Update Check",
+        "vergeVersion": "Verge Version"
+      }
+    }
+  }
+}
+

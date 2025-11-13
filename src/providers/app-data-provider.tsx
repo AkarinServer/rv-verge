@@ -61,17 +61,30 @@ export const AppDataProvider = ({
   const { data: clashConfig, mutate: refreshClashConfig } = useSWR(
     "getClashConfig",
     async () => {
+      // 添加超时机制，避免长时间等待
+      const timeout = (ms: number) => 
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), ms)
+        );
+
       try {
-        // Try to get config from mihomo API first
-        return await getBaseConfig();
+        // Try to get config from mihomo API first with timeout
+        return await Promise.race([
+          getBaseConfig(),
+          timeout(5000), // 5秒超时
+        ]);
       } catch (error) {
         console.warn("[DataProvider] getBaseConfig failed, using runtime config:", error);
         // Fallback to runtime config from Rust backend
         try {
-          return await getRuntimeConfig();
+          return await Promise.race([
+            getRuntimeConfig(),
+            timeout(3000), // 3秒超时
+          ]);
         } catch (err) {
           console.warn("[DataProvider] getRuntimeConfig failed:", err);
           // Return default config as last resort
+          // 在启动阶段，返回默认配置而不是抛出错误
           return {
             port: 7890,
             "socks-port": 7891,
@@ -83,7 +96,17 @@ export const AppDataProvider = ({
         }
       }
     },
-    SWR_SLOW_POLL,
+    {
+      ...SWR_SLOW_POLL,
+      // 关键修复：启动时快速重试，不要等待太久
+      errorRetryCount: 10, // 增加重试次数，但缩短间隔
+      errorRetryInterval: 500, // 从2秒减少到500ms，快速重试
+      // 启动时不立即失败，等待重试
+      shouldRetryOnError: true,
+      // 启动时立即尝试，不要等待refreshInterval
+      revalidateOnMount: true,
+      revalidateOnReconnect: true,
+    },
   );
 
   const { data: proxyProviders, mutate: refreshProxyProviders } = useSWR(
@@ -201,7 +224,8 @@ export const AppDataProvider = ({
 
   const { data: uptimeData } = useSWR("appUptime", getAppUptime, {
     ...SWR_DEFAULTS,
-    refreshInterval: 3000,
+    refreshInterval: 1000, // 1秒刷新一次，让uptime显示更实时
+    dedupingInterval: 500, // 减少去重间隔，确保刷新及时
     errorRetryCount: 1,
   });
 

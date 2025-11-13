@@ -16,7 +16,12 @@ export const SWR_REALTIME = {
 
 export const SWR_SLOW_POLL = {
   ...SWR_DEFAULTS,
-  refreshInterval: 60000,
+  // 关键修复：从60秒减少到3秒，避免启动时长时间等待
+  refreshInterval: 3000,
+  // 启动时更宽容的错误处理
+  errorRetryCount: 5,
+  errorRetryInterval: 1000, // 从2秒减少到1秒，加快重试
+  shouldRetryOnError: true,
 } as const;
 
 export const useSWRMutate = () => {

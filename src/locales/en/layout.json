@@ -1,0 +1,17 @@
+{
+  "components": {
+    "navigation": {
+      "tabs": {
+        "home": "Home",
+        "proxies": "Proxies",
+        "profiles": "Profiles",
+        "connections": "Connections",
+        "rules": "Rules",
+        "logs": "Logs",
+        "unlock": "Unlock",
+        "settings": "Settings"
+      }
+    }
+  }
+}
+

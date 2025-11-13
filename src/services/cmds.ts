@@ -10,6 +10,7 @@ import type {
   IProxyGroupItem,
   ILogItem,
   IVergeConfig,
+  IProfileOption,
 } from "@/types";
 
 // Profile commands
@@ -32,6 +33,20 @@ export async function createProfile(
 
 export async function deleteProfile(index: string): Promise<void> {
   return invoke<void>("delete_profile", { index });
+}
+
+export async function switchProfile(index: string): Promise<boolean> {
+  return invoke<boolean>("patch_profiles_config_by_profile_index", { profileIndex: index });
+}
+
+export async function importProfile(
+  url: string,
+  option?: IProfileOption,
+): Promise<void> {
+  return invoke<void>("import_profile", {
+    url,
+    option: option || { with_proxy: true },
+  });
 }
 
 // Clash config commands
@@ -215,7 +230,9 @@ export const getRunningMode = async (): Promise<string> => {
 };
 
 export const getAppUptime = async (): Promise<number> => {
-  return invoke<number>("get_app_uptime");
+  // 后端返回的是毫秒，转换为秒
+  const milliseconds = await invoke<number>("get_app_uptime");
+  return Math.floor(milliseconds / 1000);
 };
 
 // App commands

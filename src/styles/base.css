@@ -1,10 +1,45 @@
+/* Global styles - 确保完全填充且无滚动条 */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+html {
+  /* 禁用所有滚动条 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 /* Base page styles */
 .base-page {
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* 确保完全填充父容器 */
+  box-sizing: border-box;
 }
 
 .base-page header {
@@ -16,12 +51,21 @@
   flex-shrink: 0;
 }
 
+/* 当没有 header 时，base-container 直接填充 */
+.base-page:not(:has(header)) .base-container {
+  padding-top: 0;
+}
+
 .base-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .base-container.no-padding {
@@ -32,15 +76,58 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; /* 父容器隐藏溢出，让子容器处理滚动 */
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .base-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
+  overflow-y: auto !important; /* 确保滚动不被覆盖 */
+  overflow-x: hidden !important;
+  min-height: 0; /* 关键：允许 flex 子元素收缩 */
+  min-width: 0;
+  width: 100%;
+  height: 0; /* 关键：设置为 0，让 flex: 1 控制高度 */
+  /* 使用 block 布局，让内容自然流动 */
+  display: block;
+  /* 优化窗口调整时的性能 */
+  will-change: contents;
+  box-sizing: border-box;
+  /* 美化滚动条 */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent; /* Firefox */
+}
+
+.base-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.base-content::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.base-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.base-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode scrollbar */
+[data-theme="dark"] .base-content::-webkit-scrollbar-thumb,
+.theme-dark .base-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .base-content::-webkit-scrollbar-thumb:hover,
+.theme-dark .base-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Dark mode support */
