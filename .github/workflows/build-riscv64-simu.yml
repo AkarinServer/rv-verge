@@ -176,6 +176,41 @@ jobs:
             ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/ 2>/dev/null || echo "Fast-release directory not found"
             ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || echo "Bundle directory not found"
             ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/ 2>/dev/null || echo "Release directory not found"
+            
+            # Fix file permissions so the host can rename files
+            # Change ownership to match the runner user (usually UID 1001 or 1000)
+            # Use chmod as a fallback to make files writable
+            echo "Fixing file permissions for build artifacts..."
+            chmod -R u+w src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || true
+            chmod -R u+w src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/ 2>/dev/null || true
+            # Try to change ownership to a common user ID (1001 is typical for GitHub Actions)
+            chown -R 1001:1001 src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || true
+            chown -R 1001:1001 src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/ 2>/dev/null || true
+
+      - name: Fix file permissions
+        run: |
+          # Fix permissions for files created in Docker container
+          # Try to get the current user ID
+          USER_ID=$(id -u)
+          echo "Current user ID: $USER_ID"
+          
+          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release"
+          if [ ! -d "$RELEASE_DIR" ]; then
+            RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          fi
+          
+          if [ -d "$RELEASE_DIR/bundle" ]; then
+            echo "Fixing permissions for bundle directory..."
+            # Use sudo if available, otherwise try chmod
+            if command -v sudo >/dev/null 2>&1; then
+              sudo chown -R $USER_ID:$USER_ID "$RELEASE_DIR/bundle" || true
+              sudo chmod -R u+w "$RELEASE_DIR/bundle" || true
+            else
+              chmod -R u+w "$RELEASE_DIR/bundle" 2>/dev/null || true
+            fi
+            echo "Permissions fixed"
+            ls -la "$RELEASE_DIR/bundle/" 2>/dev/null || echo "Cannot list bundle directory"
+          fi
 
       - name: Prepare and rename release files
         id: release_files
@@ -199,6 +234,22 @@ jobs:
           # Get current version for filtering
           CURRENT_VERSION="${{ steps.version.outputs.version }}"
           
+          # Helper function to rename file with fallback to sudo
+          rename_file() {
+            local src="$1"
+            local dst="$2"
+            if mv "$src" "$dst" 2>/dev/null; then
+              echo "✓ Renamed: $(basename "$src") -> $(basename "$dst")"
+              return 0
+            elif command -v sudo >/dev/null 2>&1 && sudo mv "$src" "$dst" 2>/dev/null; then
+              echo "✓ Renamed (with sudo): $(basename "$src") -> $(basename "$dst")"
+              return 0
+            else
+              echo "✗ Failed to rename: $(basename "$src")"
+              return 1
+            fi
+          }
+          
           # DEB packages - rename to RV.Verge_VERSION_s_linux_riscv64.deb
           if [ -d "$RELEASE_DIR/bundle/deb" ]; then
             for file in "$RELEASE_DIR/bundle/deb"/*.deb; do
@@ -212,9 +263,13 @@ jobs:
                   NEW_FILE="$DIR/$NEW_FILENAME"
                   
                   if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
-                    mv "$file" "$NEW_FILE"
-                    echo "✓ Renamed DEB: $FILENAME -> $NEW_FILENAME"
-                    RELEASE_FILES+=("$NEW_FILE")
+                    if rename_file "$file" "$NEW_FILE"; then
+                      RELEASE_FILES+=("$NEW_FILE")
+                    else
+                      # If rename failed, use the original file
+                      RELEASE_FILES+=("$file")
+                      echo "⚠ Using original filename: $FILENAME"
+                    fi
                   else
                     RELEASE_FILES+=("$file")
                     echo "✓ Found DEB: $FILENAME"
@@ -242,9 +297,13 @@ jobs:
                   NEW_FILE="$DIR/$NEW_FILENAME"
                   
                   if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
-                    mv "$file" "$NEW_FILE"
-                    echo "✓ Renamed RPM: $FILENAME -> $NEW_FILENAME"
-                    RELEASE_FILES+=("$NEW_FILE")
+                    if rename_file "$file" "$NEW_FILE"; then
+                      RELEASE_FILES+=("$NEW_FILE")
+                    else
+                      # If rename failed, use the original file
+                      RELEASE_FILES+=("$file")
+                      echo "⚠ Using original filename: $FILENAME"
+                    fi
                   else
                     RELEASE_FILES+=("$file")
                     echo "✓ Found RPM: $FILENAME"
