@@ -15,6 +15,41 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version calculation
+
+      - name: Calculate version
+        id: version
+        run: |
+          # Calculate version based on commit count (自动版本递增)
+          # Format: 0.1.${COMMIT_COUNT}
+          BASE_VERSION="0.1"
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION="${BASE_VERSION}.${COMMIT_COUNT}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (based on commit count: $COMMIT_COUNT)"
+          
+          # Update package.json and Cargo.toml with new version (构建前更新版本)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Updated package.json version to', pkg.version);
+          "
+          
+          # Update Cargo.toml version
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          echo "Updated Cargo.toml version to $VERSION"
+          
+          # Update tauri.conf.json version (required for correct package naming)
+          node -e "
+            const fs = require('fs');
+            const tauriConfig = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tauriConfig.version = '$VERSION';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tauriConfig, null, 2) + '\n');
+            console.log('Updated tauri.conf.json version to', tauriConfig.version);
+          "
 
       - name: Build on RISCV64
         uses: uraimo/run-on-arch-action@v3
@@ -91,6 +126,23 @@ jobs:
             echo "当前工作目录: $(pwd)"
             ls -la
             
+            # On RISC-V, we need to remove @vitejs/plugin-react-swc from package.json
+            # before installing dependencies because it will try to load @swc/core
+            # which doesn't have native bindings for RISC-V
+            # We'll use @vitejs/plugin-react (Babel-based) instead
+            if [ -f package.json ]; then
+              echo "Removing @vitejs/plugin-react-swc from package.json for RISC-V build..."
+              node -e "
+                const fs = require('fs');
+                const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                if (pkg.devDependencies && pkg.devDependencies['@vitejs/plugin-react-swc']) {
+                  delete pkg.devDependencies['@vitejs/plugin-react-swc'];
+                  fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+                  console.log('Removed @vitejs/plugin-react-swc from package.json');
+                }
+              "
+            fi
+            
             if [ -f package-lock.json ]; then
               echo "找到 package-lock.json，使用 npm ci"
               npm ci
@@ -99,17 +151,134 @@ jobs:
               npm install
             fi
             
-            # 构建前端
-            npm run build
+            # Ensure @vitejs/plugin-react is installed (Babel-based)
+            if ! npm list @vitejs/plugin-react >/dev/null 2>&1; then
+              echo "Installing @vitejs/plugin-react..."
+              npm install --save-dev @vitejs/plugin-react
+            fi
             
-            # 构建 Tauri 应用
-            npm run tauri build -- --target riscv64gc-unknown-linux-gnu
+            # 运行 prebuild
+            npm run prebuild || echo "Warning: prebuild failed, continuing..."
+            
+            # 构建 Tauri 应用（使用 deb 和 rpm bundles，fast-release profile）
+            # Note: Tauri's beforeBuildCommand will build frontend automatically
+            echo "Starting Tauri build for RISC-V (Simulation)..."
+            echo "Build will use fast-release profile (optimized for speed)"
+            npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm -- --profile fast-release
+            
+            # Verify build output
+            echo "Build output verification:"
+            ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/ 2>/dev/null || echo "Fast-release directory not found"
+            ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || echo "Bundle directory not found"
+            ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/ 2>/dev/null || echo "Release directory not found"
+
+      - name: Prepare and rename release files
+        id: release_files
+        run: |
+          # Find all release files and rename with _s_linux_riscv64 suffix
+          # Use fast-release directory first (since we use --profile fast-release)
+          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release"
+          
+          # Fallback to release directory if fast-release doesn't exist
+          if [ ! -d "$RELEASE_DIR" ]; then
+            RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          fi
+          
+          echo "Checking release directory: $RELEASE_DIR"
+          ls -la "$RELEASE_DIR/" 2>/dev/null || echo "Release directory not found"
+          ls -la "$RELEASE_DIR/bundle/" 2>/dev/null || echo "Bundle directory not found"
+          
+          # Create release files list
+          RELEASE_FILES=()
+          
+          # Get current version for filtering
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          
+          # DEB packages - rename to RV.Verge_VERSION_s_linux_riscv64.deb
+          if [ -d "$RELEASE_DIR/bundle/deb" ]; then
+            for file in "$RELEASE_DIR/bundle/deb"/*.deb; do
+              if [ -f "$file" ]; then
+                FILENAME=$(basename "$file")
+                # Check if file contains current version
+                if echo "$FILENAME" | grep -Fq "_${CURRENT_VERSION}_"; then
+                  DIR=$(dirname "$file")
+                  # Rename: RV.Verge_VERSION_ARCH.deb -> RV.Verge_VERSION_s_linux_riscv64.deb
+                  NEW_FILENAME=$(echo "$FILENAME" | sed -E "s/_([0-9]+\.[0-9]+\.[0-9]+)_([a-z0-9]+)\.deb$/_\\1_s_linux_riscv64.deb/")
+                  NEW_FILE="$DIR/$NEW_FILENAME"
+                  
+                  if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                    mv "$file" "$NEW_FILE"
+                    echo "✓ Renamed DEB: $FILENAME -> $NEW_FILENAME"
+                    RELEASE_FILES+=("$NEW_FILE")
+                  else
+                    RELEASE_FILES+=("$file")
+                    echo "✓ Found DEB: $FILENAME"
+                  fi
+                else
+                  echo "⚠ Skipping DEB with different version: $FILENAME"
+                fi
+              fi
+            done
+          else
+            echo "✗ DEB directory not found: $RELEASE_DIR/bundle/deb"
+          fi
+          
+          # RPM packages - rename to RV.Verge-VERSION-RELEASE.s.linux.riscv64.rpm
+          if [ -d "$RELEASE_DIR/bundle/rpm" ]; then
+            for file in "$RELEASE_DIR/bundle/rpm"/*.rpm; do
+              if [ -f "$file" ]; then
+                FILENAME=$(basename "$file")
+                # Check if file contains current version
+                if echo "$FILENAME" | grep -Fq "-${CURRENT_VERSION}-"; then
+                  DIR=$(dirname "$file")
+                  # Rename: RV.Verge-VERSION-RELEASE.ARCH.rpm -> RV.Verge-VERSION-RELEASE.s.linux.riscv64.rpm
+                  # Pattern: .ARCH.rpm -> .s.linux.riscv64.rpm
+                  NEW_FILENAME=$(echo "$FILENAME" | sed -E 's/\.([a-z0-9]+)\.rpm$/.s.linux.riscv64.rpm/')
+                  NEW_FILE="$DIR/$NEW_FILENAME"
+                  
+                  if [ "$FILENAME" != "$NEW_FILENAME" ] && [ -f "$file" ]; then
+                    mv "$file" "$NEW_FILE"
+                    echo "✓ Renamed RPM: $FILENAME -> $NEW_FILENAME"
+                    RELEASE_FILES+=("$NEW_FILE")
+                  else
+                    RELEASE_FILES+=("$file")
+                    echo "✓ Found RPM: $FILENAME"
+                  fi
+                else
+                  echo "⚠ Skipping RPM with different version: $FILENAME"
+                fi
+              fi
+            done
+          else
+            echo "✗ RPM directory not found: $RELEASE_DIR/bundle/rpm"
+          fi
+          
+          # Check if files exist
+          if [ ${#RELEASE_FILES[@]} -eq 0 ]; then
+            echo "Error: No release files found!"
+            echo "Build directory contents:"
+            find "$RELEASE_DIR" -type f 2>/dev/null | head -20 || echo "Cannot list files"
+            exit 1
+          fi
+          
+          echo ""
+          echo "Found ${#RELEASE_FILES[@]} release file(s):"
+          for file in "${RELEASE_FILES[@]}"; do
+            echo "  - $file ($(du -h "$file" | cut -f1))"
+          done
+          
+          # Output files list (每行一个文件路径，使用multiline format)
+          {
+            echo "files<<EOF"
+            printf '%s\n' "${RELEASE_FILES[@]}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tauri-riscv64-simu
           path: |
-            src-tauri/target/riscv64gc-unknown-linux-gnu/release/tauri-riscv64-test
+            src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/
             src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/
 
