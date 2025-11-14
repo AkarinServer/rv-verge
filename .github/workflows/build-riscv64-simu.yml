@@ -18,6 +18,11 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for version calculation
 
+      - name: Setup Node.js (for version calculation)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Calculate version
         id: version
         run: |
