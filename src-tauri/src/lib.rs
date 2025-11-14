@@ -249,88 +249,88 @@ mod app_init {
 }
 
 pub fn run() {
-    // 先输出到 stderr，确保能看到
-    eprintln!("[RV Verge] ===== run() 函数开始 =====");
-    eprintln!("[RV Verge] 应用启动中...");
+    // Output to stderr first, so it's visible
+    eprintln!("[RV Verge] ===== run() function started =====");
+    eprintln!("[RV Verge] Application starting...");
     
-    // 尝试输出日志，即使日志系统可能还未初始化
-    logging!(info, Type::Setup, "应用启动中...");
+    // Try to output logs, even if logger may not be initialized yet
+    logging!(info, Type::Setup, "Application starting...");
     
-    eprintln!("[RV Verge] 开始单例检查...");
+    eprintln!("[RV Verge] Starting singleton check...");
     match app_init::init_singleton_check() {
         Ok(_) => {
-            eprintln!("[RV Verge] ✓ 单例检查通过");
-            logging!(info, Type::Setup, "单例检查通过");
+            eprintln!("[RV Verge] OK: Singleton check passed");
+            logging!(info, Type::Setup, "Singleton check passed");
         }
         Err(e) => {
-            eprintln!("[RV Verge] ✗ 单例检查失败: {}, 应用将退出", e);
-            eprintln!("[RV Verge] ===== 应用启动失败 =====");
-            logging!(error, Type::Setup, "单例检查失败: {}, 应用将退出", e);
+            eprintln!("[RV Verge] FAILED: Singleton check failed: {}, application will exit", e);
+            eprintln!("[RV Verge] ===== Application startup failed =====");
+            logging!(error, Type::Setup, "Singleton check failed: {}, application will exit", e);
             return;
         }
     }
 
-    eprintln!("[RV Verge] 初始化便携模式标志...");
+    eprintln!("[RV Verge] Initializing portable mode flag...");
     let _ = utils::dirs::init_portable_flag();
 
     #[cfg(target_os = "linux")]
     {
-        eprintln!("[RV Verge] 配置 Linux 环境...");
+        eprintln!("[RV Verge] Configuring Linux environment...");
         linux::configure_environment();
     }
 
-    eprintln!("[RV Verge] 设置 Tauri 插件...");
+    eprintln!("[RV Verge] Setting up Tauri plugins...");
     let builder = app_init::setup_plugins(tauri::Builder::default())
         .setup(|app| {
-            eprintln!("[RV Verge] ===== Tauri setup 回调开始 =====");
-            logging!(info, Type::Setup, "开始应用初始化...");
-            eprintln!("[RV Verge] 设置全局 app handle...");
+            eprintln!("[RV Verge] ===== Tauri setup callback started =====");
+            logging!(info, Type::Setup, "Starting application initialization...");
+            eprintln!("[RV Verge] Setting global app handle...");
 
             #[allow(clippy::expect_used)]
             APP_HANDLE
                 .set(app.app_handle().clone())
                 .expect("failed to set global app handle");
-            eprintln!("[RV Verge] ✓ 全局 app handle 已设置");
+            eprintln!("[RV Verge] OK: Global app handle set");
 
-            eprintln!("[RV Verge] 设置自动启动...");
+            eprintln!("[RV Verge] Setting up autostart...");
             if let Err(e) = app_init::setup_autostart(app) {
-                eprintln!("[RV Verge] ✗ 设置自动启动失败: {}", e);
+                eprintln!("[RV Verge] FAILED: Autostart setup failed: {}", e);
                 logging!(error, Type::Setup, "Failed to setup autostart: {}", e);
             } else {
-                eprintln!("[RV Verge] ✓ 自动启动设置完成");
+                eprintln!("[RV Verge] OK: Autostart setup completed");
             }
 
-            eprintln!("[RV Verge] 设置深层链接...");
+            eprintln!("[RV Verge] Setting up deep links...");
             if let Err(e) = app_init::setup_deep_links(app) {
-                eprintln!("[RV Verge] ✗ 设置深层链接失败: {}", e);
+                eprintln!("[RV Verge] FAILED: Deep links setup failed: {}", e);
                 logging!(error, Type::Setup, "Failed to setup deep links: {}", e);
             } else {
-                eprintln!("[RV Verge] ✓ 深层链接设置完成");
+                eprintln!("[RV Verge] OK: Deep links setup completed");
             }
 
-            eprintln!("[RV Verge] 设置窗口状态...");
+            eprintln!("[RV Verge] Setting up window state...");
             if let Err(e) = app_init::setup_window_state(app) {
-                eprintln!("[RV Verge] ✗ 设置窗口状态失败: {}", e);
+                eprintln!("[RV Verge] FAILED: Window state setup failed: {}", e);
                 logging!(error, Type::Setup, "Failed to setup window state: {}", e);
             } else {
-                eprintln!("[RV Verge] ✓ 窗口状态设置完成");
+                eprintln!("[RV Verge] OK: Window state setup completed");
             }
 
-            eprintln!("[RV Verge] 设置 resolve 处理器...");
+            eprintln!("[RV Verge] Setting up resolve handlers...");
             resolve::resolve_setup_handle();
-            eprintln!("[RV Verge] 启动异步初始化...");
+            eprintln!("[RV Verge] Starting async initialization...");
             resolve::resolve_setup_async();
-            eprintln!("[RV Verge] 启动同步初始化...");
+            eprintln!("[RV Verge] Starting sync initialization...");
             resolve::resolve_setup_sync();
 
-            logging!(info, Type::Setup, "初始化已启动");
-            eprintln!("[RV Verge] ===== Tauri setup 回调完成 =====");
+            logging!(info, Type::Setup, "Initialization started");
+            eprintln!("[RV Verge] ===== Tauri setup callback completed =====");
             Ok(())
         })
         .invoke_handler(app_init::generate_handlers());
 
-    eprintln!("[RV Verge] ✓ Builder 构建完成");
-    eprintln!("[RV Verge] 准备运行 Tauri 应用...");
+    eprintln!("[RV Verge] OK: Builder constructed");
+    eprintln!("[RV Verge] Preparing to run Tauri application...");
 
     mod event_handlers {
         #[cfg(target_os = "macos")]
@@ -464,14 +464,14 @@ pub fn run() {
 
     #[cfg(not(feature = "clippy"))]
     let app = {
-        eprintln!("[RV Verge] 开始构建 App...");
+        eprintln!("[RV Verge] Starting to build App...");
         match builder.build(tauri::generate_context!()) {
             Ok(app) => {
-                eprintln!("[RV Verge] App 构建成功");
+                eprintln!("[RV Verge] OK: App built successfully");
                 app
             }
             Err(e) => {
-                eprintln!("[RV Verge] App 构建失败: {}", e);
+                eprintln!("[RV Verge] FAILED: App build failed: {}", e);
                 logging!(
                     error,
                     Type::Setup,
@@ -483,24 +483,24 @@ pub fn run() {
         }
     };
 
-    eprintln!("[RV Verge] ===== 开始运行 Tauri 应用 =====");
-    eprintln!("[RV Verge] 调用 app.run()...");
+    eprintln!("[RV Verge] ===== Starting Tauri application =====");
+    eprintln!("[RV Verge] Calling app.run()...");
     app.run(|app_handle, e| {
-        // 输出事件信息
+        // Output event info
         match e {
             tauri::RunEvent::Ready => {
-                eprintln!("[RV Verge] ✓ 应用就绪 (Ready)");
+                eprintln!("[RV Verge] OK: Application ready (Ready)");
             }
             tauri::RunEvent::Resumed => {
-                eprintln!("[RV Verge] ✓ 应用恢复 (Resumed)");
+                eprintln!("[RV Verge] OK: Application resumed (Resumed)");
             }
             tauri::RunEvent::Exit => {
-                eprintln!("[RV Verge] ===== 应用退出 (Exit) =====");
+                eprintln!("[RV Verge] ===== Application exiting (Exit) =====");
             }
             _ => {}
         }
         
-        // 处理事件
+        // Handle events
         match e {
             tauri::RunEvent::Ready | tauri::RunEvent::Resumed => {
                 if core::handle::Handle::global().is_exiting() {
