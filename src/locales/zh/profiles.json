@@ -33,10 +33,21 @@
   "actions": {
     "switch": "切换",
     "delete": "删除",
-    "edit": "编辑"
+    "edit": "编辑",
+    "update": "更新",
+    "updating": "更新中..."
   },
   "delete": {
-    "confirm": "确定要删除配置文件 \"{{name}}\" 吗？此操作不可撤销。"
+    "title": "删除配置文件",
+    "confirm": "确定要删除配置文件 \"{{name}}\" 吗？此操作不可撤销。",
+    "cannotDeleteCurrent": "无法删除当前正在使用的配置文件。请先切换到其他配置文件。",
+    "confirmButton": "删除",
+    "deleting": "删除中...",
+    "errors": {
+      "cannotDeleteCurrent": "无法删除当前正在使用的配置文件。",
+      "invalidProfile": "无效的配置文件。",
+      "deleteFailed": "删除配置文件失败: {{error}}"
+    }
   },
   "shared": {
     "actions": {

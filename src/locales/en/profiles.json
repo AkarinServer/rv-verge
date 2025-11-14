@@ -33,10 +33,21 @@
   "actions": {
     "switch": "Switch",
     "delete": "Delete",
-    "edit": "Edit"
+    "edit": "Edit",
+    "update": "Update",
+    "updating": "Updating..."
   },
   "delete": {
-    "confirm": "Are you sure you want to delete profile \"{{name}}\"? This action cannot be undone."
+    "title": "Delete Profile",
+    "confirm": "Are you sure you want to delete profile \"{{name}}\"? This action cannot be undone.",
+    "cannotDeleteCurrent": "Cannot delete the currently active profile. Please switch to another profile first.",
+    "confirmButton": "Delete",
+    "deleting": "Deleting...",
+    "errors": {
+      "cannotDeleteCurrent": "Cannot delete the currently active profile.",
+      "invalidProfile": "Invalid profile.",
+      "deleteFailed": "Failed to delete profile: {{error}}"
+    }
   },
   "shared": {
     "actions": {

@@ -9,7 +9,7 @@ use std::{fmt, sync::Arc, time::Instant};
 use crate::process::CommandChildGuard;
 use crate::singleton_lazy;
 
-#[derive(Debug, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub enum RunningMode {
     Service,
     Sidecar,

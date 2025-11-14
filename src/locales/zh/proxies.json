@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "代理",
+    "modes": {
+      "rule": "规则",
+      "global": "全局",
+      "direct": "直连"
+    }
+  },
+  "group": {
+    "title": "代理组",
+    "empty": "没有代理组",
+    "select": "选择代理",
+    "loading": "加载中...",
+    "noProxies": "该组没有代理",
+    "testAll": "测试所有代理",
+    "testAllTooltip": "测试该组所有代理的延迟"
+  },
+  "item": {
+    "name": "名称",
+    "type": "类型",
+    "delay": "测试延迟",
+    "testing": "测试中...",
+    "timeout": "超时",
+    "error": "错误",
+    "ms": "ms",
+    "notTested": "-"
+  }
+}
+

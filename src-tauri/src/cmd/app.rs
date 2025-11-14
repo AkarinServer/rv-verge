@@ -254,3 +254,88 @@ pub fn update_ui_stage(stage: UiReadyStage) -> CmdResult<()> {
     ui::update_ui_ready_stage(stage);
     Ok(())
 }
+
+/// 清空所有数据（用于测试）
+#[tauri::command]
+pub async fn clear_all_data() -> CmdResult<()> {
+    use crate::config::Config;
+    use crate::core::CoreManager;
+    use crate::module::auto_backup::AutoBackupManager;
+    
+    logging!(info, Type::Cmd, "开始清空所有数据...");
+    
+    let app_dir = dirs::app_home_dir().stringify_err()?;
+    let profiles_dir = dirs::app_profiles_dir().stringify_err()?;
+    
+    // 停止 Clash 核心
+    if let Err(e) = CoreManager::global().stop_core().await {
+        logging!(warn, Type::Cmd, "停止 Clash 核心失败: {}", e);
+    }
+    
+    // 删除配置文件
+    let config_files = [
+        app_dir.join(dirs::VERGE_CONFIG),
+        app_dir.join(dirs::PROFILE_YAML),
+        app_dir.join(dirs::CLASH_CONFIG),
+        app_dir.join(crate::constants::files::DNS_CONFIG),
+        app_dir.join(crate::constants::files::RUNTIME_CONFIG),
+    ];
+    
+    for config_file in &config_files {
+        if config_file.exists() {
+            if let Err(e) = fs::remove_file(config_file).await {
+                logging!(warn, Type::Cmd, "删除配置文件失败 {:?}: {}", config_file, e);
+            } else {
+                logging!(info, Type::Cmd, "已删除配置文件: {:?}", config_file);
+            }
+        }
+    }
+    
+    // 删除 profiles 目录下的所有文件（除了 Script.js 和 Merge.yaml，它们是系统文件）
+    if profiles_dir.exists() {
+        let mut entries = match fs::read_dir(&profiles_dir).await {
+            Ok(entries) => entries,
+            Err(e) => {
+                logging!(warn, Type::Cmd, "读取 profiles 目录失败: {}", e);
+                return Ok(());
+            }
+        };
+        
+        while let Some(entry) = entries.next_entry().await.stringify_err()? {
+            let path = entry.path();
+            let file_name = path.file_name().and_then(|n| n.to_str());
+            
+            // 跳过系统文件
+            if file_name == Some("Script.js") || file_name == Some("Merge.yaml") {
+                continue;
+            }
+            
+            // 检查是否为文件
+            let metadata = match fs::metadata(&path).await {
+                Ok(meta) => meta,
+                Err(e) => {
+                    logging!(warn, Type::Cmd, "获取文件元数据失败 {:?}: {}", path, e);
+                    continue;
+                }
+            };
+            
+            if metadata.is_file() {
+                if let Err(e) = fs::remove_file(&path).await {
+                    logging!(warn, Type::Cmd, "删除文件失败 {:?}: {}", path, e);
+                } else {
+                    logging!(info, Type::Cmd, "已删除文件: {:?}", path);
+                }
+            }
+        }
+    }
+    
+    // 重置配置
+    Config::profiles().await.discard();
+    Config::verge().await.discard();
+    
+    // 触发备份（如果需要）
+    AutoBackupManager::trigger_backup(crate::module::auto_backup::AutoBackupTrigger::ProfileChange);
+    
+    logging!(info, Type::Cmd, "清空所有数据完成");
+    Ok(())
+}

@@ -1,0 +1,19 @@
+{
+  "unlock": {
+    "title": "解锁",
+    "placeholder": "解锁页面（待实现）"
+  },
+  "rules": {
+    "title": "规则",
+    "placeholder": "规则页面（待实现）"
+  },
+  "logs": {
+    "title": "日志",
+    "placeholder": "日志页面（待实现）"
+  },
+  "connections": {
+    "title": "连接",
+    "placeholder": "连接页面（待实现）"
+  }
+}
+

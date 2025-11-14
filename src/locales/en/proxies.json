@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "Proxies",
+    "modes": {
+      "rule": "Rule",
+      "global": "Global",
+      "direct": "Direct"
+    }
+  },
+  "group": {
+    "title": "Proxy Groups",
+    "empty": "No proxy groups",
+    "select": "Select Proxy",
+    "loading": "Loading...",
+    "noProxies": "No proxies in this group",
+    "testAll": "Test All Proxies",
+    "testAllTooltip": "Test latency for all proxies in this group"
+  },
+  "item": {
+    "name": "Name",
+    "type": "Type",
+    "delay": "Test Delay",
+    "testing": "Testing...",
+    "timeout": "Timeout",
+    "error": "Error",
+    "ms": "ms",
+    "notTested": "-"
+  }
+}
+

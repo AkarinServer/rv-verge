@@ -15,6 +15,7 @@ import {
   getRuntimeConfig,
   getRunningMode,
   getSystemProxy,
+  startCore,
 } from "@/services/cmds";
 import { SWR_DEFAULTS, SWR_REALTIME, SWR_SLOW_POLL } from "@/services/config";
 
@@ -198,7 +199,29 @@ export const AppDataProvider = ({
 
     void initializeListeners();
 
+    // 确保核心在应用启动时被启动
+    const ensureCoreStarted = async () => {
+      try {
+        const runningMode = await getRunningMode();
+        if (runningMode === "NotRunning") {
+          console.log("[AppDataProvider] 核心未运行，尝试启动...");
+          await startCore();
+          console.log("[AppDataProvider] 核心启动命令已发送");
+        } else {
+          console.log("[AppDataProvider] 核心运行状态:", runningMode);
+        }
+      } catch (error) {
+        console.warn("[AppDataProvider] 检查/启动核心失败:", error);
+      }
+    };
+
+    // 延迟启动核心，确保后端已完全初始化
+    const startCoreTimeout = setTimeout(() => {
+      void ensureCoreStarted();
+    }, 2000); // 2秒后尝试启动核心
+
     return () => {
+      clearTimeout(startCoreTimeout);
       isUnmounted = true;
       cleanupFns.splice(0).forEach((fn) => {
         try {

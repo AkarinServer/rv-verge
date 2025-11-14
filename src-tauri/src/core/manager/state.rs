@@ -77,6 +77,37 @@ impl CoreManager {
                     let mihomo = handle::Handle::mihomo().await;
                     // 尝试获取配置来触发连接建立，忽略错误（连接可能还未完全就绪）
                     let _ = mihomo.get_base_config().await;
+                    
+                    // 关键修复：核心启动后，重新加载配置以确保端口正确监听
+                    // 因为核心启动时可能配置没有完全应用
+                    // 使用 reload_config 来重新加载配置文件
+                    let config_file_str = match dirs::path_to_str(&config_file) {
+                        Ok(s) => s.to_string(),
+                        Err(e) => {
+                            logging!(warn, Type::Core, "无法获取配置文件路径: {}", e);
+                            break;
+                        }
+                    };
+                    AsyncHandler::spawn(move || async move {
+                        use crate::logging;
+                        use crate::utils::logging::Type;
+                        use crate::core::handle;
+                        
+                        // 等待一小段时间确保核心完全启动
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        
+                        // 重新加载配置
+                        let mihomo_for_reload = handle::Handle::mihomo().await;
+                        match mihomo_for_reload.reload_config(true, &config_file_str).await {
+                            Ok(_) => {
+                                logging!(info, Type::Core, "核心启动后配置已重新加载");
+                            }
+                            Err(e) => {
+                                logging!(warn, Type::Core, "核心启动后重新加载配置失败: {}", e);
+                            }
+                        }
+                    });
+                    
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(200)).await;
@@ -90,7 +121,7 @@ impl CoreManager {
         let shared_writer: SharedWriter =
             std::sync::Arc::new(tokio::sync::Mutex::new(sidecar_writer().await?));
 
-        AsyncHandler::spawn(|| async move {
+        AsyncHandler::spawn(move || async move {
             while let Some(event) = rx.recv().await {
                 match event {
                     tauri_plugin_shell::process::CommandEvent::Stdout(line)
@@ -121,6 +152,15 @@ impl CoreManager {
                             &message,
                         );
                         CLASH_LOGGER.clear_logs().await;
+                        
+                        // 关键修复：进程终止时，更新运行状态为 NotRunning
+                        use crate::core::manager::CoreManager;
+                        use crate::core::manager::RunningMode;
+                        use crate::logging;
+                        use crate::utils::logging::Type;
+                        CoreManager::global().set_running_mode(RunningMode::NotRunning);
+                        logging!(info, Type::Core, "Sidecar进程已终止，运行状态已更新为NotRunning");
+                        
                         break;
                     }
                     _ => {}

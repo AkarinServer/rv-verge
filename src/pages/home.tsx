@@ -26,8 +26,8 @@ const HomePage = () => {
   // Show loading state if i18n is not ready
   if (!ready) {
     return (
-      <BasePage title="加载中..." contentStyle={{ padding: 2 }}>
-        <div>正在加载...</div>
+      <BasePage title={t("shared.messages.loading")} contentStyle={{ padding: 2 }}>
+        <div>{t("shared.messages.loading")}</div>
       </BasePage>
     );
   }

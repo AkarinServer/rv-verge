@@ -157,7 +157,7 @@ export const IpInfoCard = forwardRef<IpInfoCardRef>((_props, ref) => {
           flex: 1,
         }}
       >
-        {ipInfo.ip || "Unknown"}
+        {ipInfo.ip || t("home.components.ipInfo.labels.unknown")}
       </Typography>
     </Box>
   );

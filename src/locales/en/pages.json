@@ -1,0 +1,19 @@
+{
+  "unlock": {
+    "title": "Unlock",
+    "placeholder": "Unlock page (to be implemented)"
+  },
+  "rules": {
+    "title": "Rules",
+    "placeholder": "Rules page (to be implemented)"
+  },
+  "logs": {
+    "title": "Logs",
+    "placeholder": "Logs page (to be implemented)"
+  },
+  "connections": {
+    "title": "Connections",
+    "placeholder": "Connections page (to be implemented)"
+  }
+}
+

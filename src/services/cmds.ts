@@ -52,6 +52,20 @@ export async function importProfile(
   });
 }
 
+export async function updateProfile(
+  index: string,
+  option?: IProfileOption,
+): Promise<void> {
+  return invoke<void>("update_profile", { index, option });
+}
+
+export async function patchProfile(
+  index: string,
+  profile: Partial<IProfileItem>,
+): Promise<void> {
+  return invoke<void>("patch_profile", { index, profile });
+}
+
 // Clash config commands
 export async function getRuntimeConfig(): Promise<IConfigData | null> {
   const config = await invoke<IConfigData>("get_runtime_config");
@@ -66,6 +80,10 @@ export async function patchClashConfig(
 
 export async function patchClashMode(payload: string): Promise<void> {
   return invoke<void>("patch_clash_mode", { payload });
+}
+
+export async function syncTrayProxySelection(): Promise<void> {
+  return invoke<void>("sync_tray_proxy_selection");
 }
 
 // Proxy commands
@@ -253,5 +271,22 @@ export async function getAppDir(): Promise<string> {
 
 export async function openAppDir(): Promise<void> {
   return invoke<void>("open_app_dir").catch((err) => console.error(err));
+}
+
+export async function clearAllData(): Promise<void> {
+  return invoke<void>("clear_all_data");
+}
+
+// Core commands
+export async function startCore(): Promise<void> {
+  return invoke<void>("start_core");
+}
+
+export async function stopCore(): Promise<void> {
+  return invoke<void>("stop_core");
+}
+
+export async function restartCore(): Promise<void> {
+  return invoke<void>("restart_core");
 }
 
