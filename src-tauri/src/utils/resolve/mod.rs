@@ -186,7 +186,13 @@ pub(super) fn init_scheme() {
 
 #[cfg(not(feature = "tauri-dev"))]
 pub(super) async fn resolve_setup_logger() {
-    logging_error!(Type::Setup, init::init_logger().await);
+    eprintln!("[RV Verge] 开始初始化日志系统...");
+    if let Err(e) = init::init_logger().await {
+        eprintln!("[RV Verge] ✗ 日志系统初始化失败: {}", e);
+        // 即使日志初始化失败，也继续运行
+    } else {
+        eprintln!("[RV Verge] ✓ 日志系统初始化成功");
+    }
 }
 
 pub async fn resolve_scheme(param: &str) -> Result<()> {

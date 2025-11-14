@@ -250,58 +250,87 @@ mod app_init {
 
 pub fn run() {
     // 先输出到 stderr，确保能看到
+    eprintln!("[RV Verge] ===== run() 函数开始 =====");
     eprintln!("[RV Verge] 应用启动中...");
+    
+    // 尝试输出日志，即使日志系统可能还未初始化
     logging!(info, Type::Setup, "应用启动中...");
     
+    eprintln!("[RV Verge] 开始单例检查...");
     match app_init::init_singleton_check() {
         Ok(_) => {
-            eprintln!("[RV Verge] 单例检查通过");
+            eprintln!("[RV Verge] ✓ 单例检查通过");
             logging!(info, Type::Setup, "单例检查通过");
         }
         Err(e) => {
-            eprintln!("[RV Verge] 单例检查失败: {}, 应用将退出", e);
+            eprintln!("[RV Verge] ✗ 单例检查失败: {}, 应用将退出", e);
+            eprintln!("[RV Verge] ===== 应用启动失败 =====");
             logging!(error, Type::Setup, "单例检查失败: {}, 应用将退出", e);
             return;
         }
     }
 
+    eprintln!("[RV Verge] 初始化便携模式标志...");
     let _ = utils::dirs::init_portable_flag();
 
     #[cfg(target_os = "linux")]
-    linux::configure_environment();
+    {
+        eprintln!("[RV Verge] 配置 Linux 环境...");
+        linux::configure_environment();
+    }
 
+    eprintln!("[RV Verge] 设置 Tauri 插件...");
     let builder = app_init::setup_plugins(tauri::Builder::default())
         .setup(|app| {
+            eprintln!("[RV Verge] ===== Tauri setup 回调开始 =====");
             logging!(info, Type::Setup, "开始应用初始化...");
+            eprintln!("[RV Verge] 设置全局 app handle...");
 
             #[allow(clippy::expect_used)]
             APP_HANDLE
                 .set(app.app_handle().clone())
                 .expect("failed to set global app handle");
+            eprintln!("[RV Verge] ✓ 全局 app handle 已设置");
 
+            eprintln!("[RV Verge] 设置自动启动...");
             if let Err(e) = app_init::setup_autostart(app) {
+                eprintln!("[RV Verge] ✗ 设置自动启动失败: {}", e);
                 logging!(error, Type::Setup, "Failed to setup autostart: {}", e);
+            } else {
+                eprintln!("[RV Verge] ✓ 自动启动设置完成");
             }
 
+            eprintln!("[RV Verge] 设置深层链接...");
             if let Err(e) = app_init::setup_deep_links(app) {
+                eprintln!("[RV Verge] ✗ 设置深层链接失败: {}", e);
                 logging!(error, Type::Setup, "Failed to setup deep links: {}", e);
+            } else {
+                eprintln!("[RV Verge] ✓ 深层链接设置完成");
             }
 
+            eprintln!("[RV Verge] 设置窗口状态...");
             if let Err(e) = app_init::setup_window_state(app) {
+                eprintln!("[RV Verge] ✗ 设置窗口状态失败: {}", e);
                 logging!(error, Type::Setup, "Failed to setup window state: {}", e);
+            } else {
+                eprintln!("[RV Verge] ✓ 窗口状态设置完成");
             }
 
+            eprintln!("[RV Verge] 设置 resolve 处理器...");
             resolve::resolve_setup_handle();
+            eprintln!("[RV Verge] 启动异步初始化...");
             resolve::resolve_setup_async();
+            eprintln!("[RV Verge] 启动同步初始化...");
             resolve::resolve_setup_sync();
 
             logging!(info, Type::Setup, "初始化已启动");
-            eprintln!("[RV Verge] setup 完成");
+            eprintln!("[RV Verge] ===== Tauri setup 回调完成 =====");
             Ok(())
         })
         .invoke_handler(app_init::generate_handlers());
 
-    eprintln!("[RV Verge] Builder 构建完成，准备运行...");
+    eprintln!("[RV Verge] ✓ Builder 构建完成");
+    eprintln!("[RV Verge] 准备运行 Tauri 应用...");
 
     mod event_handlers {
         #[cfg(target_os = "macos")]
@@ -454,9 +483,24 @@ pub fn run() {
         }
     };
 
-    eprintln!("[RV Verge] 准备运行应用...");
+    eprintln!("[RV Verge] ===== 开始运行 Tauri 应用 =====");
+    eprintln!("[RV Verge] 调用 app.run()...");
     app.run(|app_handle, e| {
-        eprintln!("[RV Verge] 收到事件: {:?}", e);
+        // 输出事件信息
+        match e {
+            tauri::RunEvent::Ready => {
+                eprintln!("[RV Verge] ✓ 应用就绪 (Ready)");
+            }
+            tauri::RunEvent::Resumed => {
+                eprintln!("[RV Verge] ✓ 应用恢复 (Resumed)");
+            }
+            tauri::RunEvent::Exit => {
+                eprintln!("[RV Verge] ===== 应用退出 (Exit) =====");
+            }
+            _ => {}
+        }
+        
+        // 处理事件
         match e {
             tauri::RunEvent::Ready | tauri::RunEvent::Resumed => {
                 if core::handle::Handle::global().is_exiting() {
