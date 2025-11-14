@@ -56,6 +56,44 @@ jobs:
             console.log('Updated tauri.conf.json version to', tauriConfig.version);
           "
 
+      - name: Cache Cargo registry (for QEMU container)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/cargo-registry
+            .cache/cargo-git
+          key: simu-cargo-registry-riscv64-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            simu-cargo-registry-riscv64-
+
+      - name: Cache Cargo target (for QEMU container)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/cargo-target
+          key: simu-cargo-target-riscv64-fast-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            simu-cargo-target-riscv64-fast-release-
+
+      - name: Cache node_modules (for QEMU container)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/node-modules
+            .cache/npm
+          key: simu-node-modules-riscv64-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            simu-node-modules-riscv64-
+
+      - name: Cache sccache (for QEMU container)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/sccache
+          key: simu-sccache-riscv64-${{ runner.os }}
+          restore-keys: |
+            simu-sccache-riscv64-
+
       - name: Build on RISCV64
         uses: uraimo/run-on-arch-action@v3
         with:
@@ -64,6 +102,7 @@ jobs:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           dockerRunArgs: |
             --volume "${{ github.workspace }}:/workspace"
+            --volume "${{ github.workspace }}/.cache:/cache"
           run: |
             # 更新系统（在容器中通常以 root 运行，不需要 sudo）
             # 添加重试机制，处理 Ubuntu 镜像同步问题
@@ -89,7 +128,8 @@ jobs:
               librsvg2-dev \
               pkg-config \
               ca-certificates \
-              gnupg
+              gnupg \
+              git
             
             # 安装 Node.js (从 gounthar/unofficial-builds GitHub Releases 下载)
             # 参考: https://github.com/gounthar/unofficial-builds/releases/tag/v24.11.0
@@ -118,6 +158,9 @@ jobs:
             node --version
             npm --version
             
+            # 设置缓存目录
+            mkdir -p /cache/cargo-registry /cache/cargo-git /cache/cargo-target /cache/node-modules /cache/npm /cache/sccache
+            
             # 安装 Rust
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source $HOME/.cargo/env
@@ -125,11 +168,60 @@ jobs:
             # 添加 RISCV64 目标（虽然已经在 RISCV64 上，但确保工具链完整）
             rustup target add riscv64gc-unknown-linux-gnu
             
+            # 配置 Cargo 使用缓存目录
+            export CARGO_HOME=/cache/cargo-home
+            mkdir -p $CARGO_HOME
+            # 链接缓存的 registry 和 git
+            if [ -d /cache/cargo-registry ] && [ "$(ls -A /cache/cargo-registry 2>/dev/null)" ]; then
+              ln -sf /cache/cargo-registry $CARGO_HOME/registry || true
+            fi
+            if [ -d /cache/cargo-git ] && [ "$(ls -A /cache/cargo-git 2>/dev/null)" ]; then
+              ln -sf /cache/cargo-git $CARGO_HOME/git || true
+            fi
+            
+            # 安装 sccache for RISC-V
+            echo "Installing sccache for RISC-V..."
+            # Try to use pre-built binary if available, otherwise build from source
+            if command -v cargo &> /dev/null; then
+              # Build sccache from source for RISC-V
+              # This may take some time but ensures compatibility
+              cargo install sccache --locked --target riscv64gc-unknown-linux-gnu || {
+                echo "Warning: Failed to install sccache, continuing without it"
+                export RUSTC_WRAPPER=""
+              }
+              if command -v sccache &> /dev/null; then
+                export RUSTC_WRAPPER=sccache
+                export SCCACHE_DIR=/cache/sccache
+                sccache --start-server || true
+                echo "sccache installed and configured"
+                sccache --show-stats || true
+              fi
+            fi
+            
+            # 配置 Cargo 环境变量（启用增量编译，已在 Cargo.toml 中配置）
+            # 不再禁用增量编译，使用 Cargo.toml 中的配置
+            # Note: CARGO_TARGET_DIR should be in workspace for Tauri to find it
+            # We'll restore cached target directory before build
+            export CARGO_BUILD_JOBS=$(nproc || echo 4)
+            export CARGO_TERM_PROGRESS_WHEN=always
+            export CARGO_TERM_PROGRESS_WIDTH=80
+            export CARGO_NET_RETRY=10
+            export CARGO_HTTP_TIMEOUT=300
+            
             # 安装项目依赖
             # 切换到工作目录
             cd /workspace
             echo "当前工作目录: $(pwd)"
             ls -la
+            
+            # 恢复缓存的 target 目录（如果存在）
+            if [ -d /cache/cargo-target ] && [ "$(ls -A /cache/cargo-target 2>/dev/null)" ]; then
+              echo "Found cached target directory, restoring..."
+              mkdir -p src-tauri/target
+              # Copy cached target, but be careful not to overwrite existing files
+              rsync -a /cache/cargo-target/ src-tauri/target/ || cp -r /cache/cargo-target/* src-tauri/target/ 2>/dev/null || true
+              echo "Target directory restored from cache"
+            fi
             
             # On RISC-V, we need to remove @vitejs/plugin-react-swc from package.json
             # before installing dependencies because it will try to load @swc/core
@@ -148,12 +240,29 @@ jobs:
               "
             fi
             
+            # 配置 npm 使用缓存
+            export npm_config_cache=/cache/npm
+            mkdir -p $npm_config_cache
+            
+            # 如果缓存中有 node_modules，先尝试使用
+            if [ -d /cache/node-modules ] && [ "$(ls -A /cache/node-modules 2>/dev/null)" ]; then
+              echo "Found cached node_modules, copying..."
+              cp -r /cache/node-modules /workspace/node_modules || true
+            fi
+            
             if [ -f package-lock.json ]; then
               echo "找到 package-lock.json，使用 npm ci"
-              npm ci
+              npm ci --cache $npm_config_cache
             else
               echo "警告: package-lock.json 不存在，使用 npm install"
-              npm install
+              npm install --cache $npm_config_cache
+            fi
+            
+            # 保存 node_modules 到缓存
+            if [ -d /workspace/node_modules ]; then
+              echo "Saving node_modules to cache..."
+              rm -rf /cache/node-modules
+              cp -r /workspace/node_modules /cache/node-modules || true
             fi
             
             # Ensure @vitejs/plugin-react is installed (Babel-based)
@@ -169,7 +278,38 @@ jobs:
             # Note: Tauri's beforeBuildCommand will build frontend automatically
             echo "Starting Tauri build for RISC-V (Simulation)..."
             echo "Build will use fast-release profile (optimized for speed)"
+            echo "Using incremental compilation (enabled in Cargo.toml)"
+            if [ -n "$RUSTC_WRAPPER" ]; then
+              echo "Using sccache for compilation caching"
+              sccache --show-stats || true
+            fi
             npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm -- --profile fast-release
+            
+            # 显示 sccache 统计信息
+            if [ -n "$RUSTC_WRAPPER" ]; then
+              echo "sccache statistics after build:"
+              sccache --show-stats || true
+            fi
+            
+            # 保存 Cargo registry 和 git 到缓存
+            if [ -d $CARGO_HOME/registry ]; then
+              echo "Saving Cargo registry to cache..."
+              mkdir -p /cache/cargo-registry
+              cp -r $CARGO_HOME/registry/* /cache/cargo-registry/ 2>/dev/null || true
+            fi
+            if [ -d $CARGO_HOME/git ]; then
+              echo "Saving Cargo git to cache..."
+              mkdir -p /cache/cargo-git
+              cp -r $CARGO_HOME/git/* /cache/cargo-git/ 2>/dev/null || true
+            fi
+            
+            # 保存 target 目录到缓存
+            if [ -d src-tauri/target ]; then
+              echo "Saving target directory to cache..."
+              mkdir -p /cache/cargo-target
+              rsync -a src-tauri/target/ /cache/cargo-target/ || cp -r src-tauri/target/* /cache/cargo-target/ 2>/dev/null || true
+              echo "Target directory saved to cache"
+            fi
             
             # Verify build output
             echo "Build output verification:"
@@ -186,6 +326,13 @@ jobs:
             # Try to change ownership to a common user ID (1001 is typical for GitHub Actions)
             chown -R 1001:1001 src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || true
             chown -R 1001:1001 src-tauri/target/riscv64gc-unknown-linux-gnu/release/bundle/ 2>/dev/null || true
+
+      - name: Save caches
+        if: always()
+        run: |
+          # Save caches back to GitHub Actions cache
+          # Note: The cache directories are already in .cache/ from the volume mount
+          echo "Caches are saved in .cache/ directory for next run"
 
       - name: Fix file permissions
         run: |

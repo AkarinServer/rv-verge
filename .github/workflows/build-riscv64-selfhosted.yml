@@ -69,9 +69,19 @@ jobs:
         with:
           path: |
             src-tauri/target
-          key: ${{ runner.os }}-cargo-target-riscv64-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-target-riscv64-fast-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-target-riscv64-fast-release-
             ${{ runner.os }}-cargo-target-riscv64-
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-riscv64-${{ runner.os }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-riscv64-
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -147,9 +157,9 @@ jobs:
           echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
           
           # Optimize Cargo build settings for RISC-V
-          # Disable incremental compilation for RISC-V (can be slower on weak CPUs)
-          # Incremental compilation adds overhead and may not help on RISC-V
-          echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+          # Enable incremental compilation (configured in Cargo.toml fast-release profile)
+          # Incremental compilation significantly reduces build time for small changes
+          # Note: Incremental compilation is now enabled in Cargo.toml fast-release profile
           
           # Use all available CPU cores for parallel compilation
           echo "CARGO_BUILD_JOBS=$(nproc || echo 4)" >> $GITHUB_ENV
@@ -164,6 +174,30 @@ jobs:
           # Don't set CARGO_TARGET_DIR to allow Tauri to use default location
           # This makes release file paths predictable
           unset CARGO_TARGET_DIR || true
+          
+          # Install and configure sccache for RISC-V
+          echo "Installing sccache for RISC-V..."
+          if ! command -v sccache &> /dev/null; then
+            # Try to install from system package manager first
+            if command -v cargo &> /dev/null; then
+              cargo install sccache --locked || {
+                echo "Warning: Failed to install sccache, continuing without it"
+              }
+            fi
+          fi
+          
+          if command -v sccache &> /dev/null; then
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR="$HOME/.cache/sccache"
+            mkdir -p "$SCCACHE_DIR"
+            sccache --start-server || true
+            echo "sccache installed and configured"
+            sccache --show-stats || true
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+            echo "SCCACHE_DIR=$HOME/.cache/sccache" >> $GITHUB_ENV
+          else
+            echo "sccache not available, continuing without compilation cache"
+          fi
 
       - name: Install project dependencies
         run: |
@@ -301,13 +335,25 @@ jobs:
           # We skip the separate frontend build step to avoid duplicate builds
           echo "Starting Tauri build for RISC-V..."
           echo "Build will use fast-release profile (optimized for speed)"
+          echo "Using incremental compilation (enabled in Cargo.toml)"
           echo "Frontend will be built automatically by Tauri's beforeBuildCommand"
           echo "Using ${CARGO_BUILD_JOBS:-4} parallel jobs for Cargo compilation"
           echo "Build timeout: 120 minutes"
           
+          if [ -n "$RUSTC_WRAPPER" ]; then
+            echo "Using sccache for compilation caching"
+            sccache --show-stats || true
+          fi
+          
           # Build with progress monitoring
           # Cargo environment variables are already set in the Rust installation step
           npm run tauri build -- --target riscv64gc-unknown-linux-gnu --bundles deb,rpm -- --profile fast-release
+          
+          # Show sccache statistics after build
+          if [ -n "$RUSTC_WRAPPER" ]; then
+            echo "sccache statistics after build:"
+            sccache --show-stats || true
+          fi
           
           # Verify build output
           echo "Build output verification:"

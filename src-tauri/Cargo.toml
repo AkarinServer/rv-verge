@@ -154,9 +154,9 @@ rpath = false
 [profile.fast-release]
 inherits = "release"
 codegen-units = 64
-# Disable incremental for RISC-V builds (can be slower on weak CPUs)
-# Incremental compilation adds overhead and may not help on RISC-V
-incremental = false
+# Enable incremental compilation for faster rebuilds
+# Incremental compilation significantly reduces build time for small changes
+incremental = true
 lto = false
 # Use opt-level 1 for RISC-V: faster than 0, but still much faster than 3
 # This provides a good balance between compile time and runtime performance
