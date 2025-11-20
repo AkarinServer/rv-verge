@@ -27,7 +27,7 @@ impl CoreManager {
             }
         }
 
-        let running_mode = *self.get_running_mode();
+        let running_mode = (*self.get_running_mode()).clone();
         logging!(info, Type::Core, "[start_core] 步骤2: 确定运行模式: {:?}", running_mode);
         
         logging!(info, Type::Core, "[start_core] 步骤3: 根据运行模式启动核心");

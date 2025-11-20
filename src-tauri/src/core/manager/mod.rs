@@ -8,6 +8,7 @@ use std::{fmt, sync::Arc, time::Instant};
 
 use crate::process::CommandChildGuard;
 use crate::singleton_lazy;
+use crate::{logging, utils::logging::Type};
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub enum RunningMode {
