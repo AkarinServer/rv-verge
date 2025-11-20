@@ -275,15 +275,17 @@ pub(super) async fn init_service_manager() {
 pub(super) async fn init_core_manager() {
     // 添加超时和日志，避免核心启动阻塞太久
     logging!(info, Type::Setup, "[init_core_manager] ===== 开始初始化核心管理器 =====");
-    eprintln!("[启动诊断] 开始初始化核心管理器...");
+    eprintln!("[Core Startup] Starting core manager initialization...");
     let start_time = std::time::Instant::now();
     
     // 检查当前运行模式
     let current_mode = CoreManager::global().get_running_mode();
     logging!(info, Type::Setup, "[init_core_manager] 当前运行模式: {:?}", current_mode);
+    eprintln!("[Core Startup] Current running mode: {:?}", current_mode);
     
     // 使用更详细的诊断包装
     logging!(info, Type::Setup, "[init_core_manager] 调用 CoreManager::global().init()，超时时间: 5分钟");
+    eprintln!("[Core Startup] Calling CoreManager::global().init(), timeout: 5 minutes");
     match with_timeout(
         "CoreManager::init",
         std::time::Duration::from_secs(300), // 5分钟超时
@@ -295,7 +297,8 @@ pub(super) async fn init_core_manager() {
             logging!(info, Type::Setup, "[init_core_manager] ===== 核心管理器初始化成功 =====");
             logging!(info, Type::Setup, "[init_core_manager] 耗时: {:?}", elapsed);
             logging!(info, Type::Setup, "[init_core_manager] 最终运行模式: {:?}", final_mode);
-            eprintln!("[启动诊断] ✓ 核心管理器初始化完成，耗时: {:?}", elapsed);
+            eprintln!("[Core Startup] ✓ Core manager initialization completed, elapsed: {:?}", elapsed);
+            eprintln!("[Core Startup] Final running mode: {:?}", final_mode);
         }
         Ok(Err(e)) => {
             let elapsed = start_time.elapsed();
@@ -305,8 +308,9 @@ pub(super) async fn init_core_manager() {
             logging!(error, Type::Setup, "[init_core_manager] 失败原因: {}", e);
             logging!(error, Type::Setup, "[init_core_manager] 失败详情: {:#}", e);
             logging!(error, Type::Setup, "[init_core_manager] 最终运行模式: {:?}", final_mode);
-            eprintln!("[启动诊断] ✗ 核心管理器初始化失败: {}", e);
-            eprintln!("[启动诊断] 错误详情: {:#}", e);
+            eprintln!("[Core Startup] ✗ Core manager initialization failed: {}", e);
+            eprintln!("[Core Startup] Error details: {:#}", e);
+            eprintln!("[Core Startup] Elapsed: {:?}, Final running mode: {:?}", elapsed, final_mode);
         }
         Err(e) => {
             let elapsed = start_time.elapsed();
@@ -316,7 +320,9 @@ pub(super) async fn init_core_manager() {
             logging!(error, Type::Setup, "[init_core_manager] 超时原因: {}", e);
             logging!(error, Type::Setup, "[init_core_manager] 最终运行模式: {:?}", final_mode);
             logging!(error, Type::Setup, "[init_core_manager] 注意: 即使超时也继续，让应用能够启动");
-            eprintln!("[启动诊断] ✗ 核心管理器初始化超时: {}", e);
+            eprintln!("[Core Startup] ✗ Core manager initialization timeout: {}", e);
+            eprintln!("[Core Startup] Elapsed: {:?}, Final running mode: {:?}", elapsed, final_mode);
+            eprintln!("[Core Startup] Note: Continuing despite timeout to allow app to start");
             // 即使超时也继续，让应用能够启动
         }
     }

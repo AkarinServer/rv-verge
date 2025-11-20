@@ -79,11 +79,14 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
 #[tauri::command]
 pub async fn start_core() -> CmdResult {
     logging!(info, Type::Core, "===== start_core 命令被调用 =====");
+    eprintln!("[Core Startup] ===== start_core command called =====");
     logging!(info, Type::Core, "开始启动核心...");
+    eprintln!("[Core Startup] Starting core...");
     
     let start_time = std::time::Instant::now();
     let current_mode = CoreManager::global().get_running_mode();
     logging!(info, Type::Core, "当前运行模式: {:?}", current_mode);
+    eprintln!("[Core Startup] Current running mode: {:?}", current_mode);
     
     let result = CoreManager::global().start_core().await;
     
@@ -92,13 +95,19 @@ pub async fn start_core() -> CmdResult {
         Ok(_) => {
             logging!(info, Type::Core, "核心启动成功，耗时: {:?}", elapsed);
             logging!(info, Type::Core, "===== start_core 命令执行成功 =====");
+            eprintln!("[Core Startup] Core started successfully, elapsed: {:?}", elapsed);
+            eprintln!("[Core Startup] ===== start_core command succeeded =====");
             handle::Handle::refresh_clash();
         }
         Err(e) => {
             logging!(error, Type::Core, "核心启动失败，耗时: {:?}", elapsed);
             logging!(error, Type::Core, "启动失败原因: {}", e);
+            eprintln!("[Core Startup] Core startup failed, elapsed: {:?}", elapsed);
+            eprintln!("[Core Startup] Failure reason: {}", e);
             logging!(error, Type::Core, "错误详情: {:#}", e);
             logging!(error, Type::Core, "===== start_core 命令执行失败 =====");
+            eprintln!("[Core Startup] Error details: {:#}", e);
+            eprintln!("[Core Startup] ===== start_core command failed =====");
         }
     }
     
