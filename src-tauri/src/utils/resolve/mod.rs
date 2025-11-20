@@ -35,14 +35,28 @@ pub fn resolve_setup_sync() {
 
 pub fn resolve_setup_async() {
     AsyncHandler::spawn(|| async {
+        logging!(info, Type::Setup, "[resolve_setup_async] ===== 异步初始化流程开始 =====");
+        eprintln!("[Core Startup] ===== Async initialization flow started =====");
+        let async_flow_start = std::time::Instant::now();
+        
         #[cfg(not(feature = "tauri-dev"))]
-        resolve_setup_logger().await;
+        {
+            logging!(info, Type::Setup, "[resolve_setup_async] 开始初始化日志系统");
+            eprintln!("[Core Startup] Starting logger system initialization");
+            let logger_start = std::time::Instant::now();
+            resolve_setup_logger().await;
+            let logger_elapsed = logger_start.elapsed();
+            logging!(info, Type::Setup, "[resolve_setup_async] 日志系统初始化完成，耗时: {:?}", logger_elapsed);
+            eprintln!("[Core Startup] Logger system initialization completed, elapsed: {:?}", logger_elapsed);
+        }
+        
         logging!(
             info,
             Type::ClashVergeRev,
             "Version: {}",
             env!("CARGO_PKG_VERSION")
         );
+        eprintln!("[Core Startup] Application version: {}", env!("CARGO_PKG_VERSION"));
 
         // 将非关键初始化移到后台，不阻塞窗口显示
         let _background_init = AsyncHandler::spawn(|| async {
@@ -61,10 +75,12 @@ pub fn resolve_setup_async() {
 
         // 只等待最少的配置初始化，其他都移到后台
         // 添加超时保护，避免配置初始化阻塞启动
+        logging!(info, Type::Setup, "[resolve_setup_async] 开始初始化配置 (超时: 30秒)");
+        eprintln!("[Core Startup] Starting config initialization (timeout: 30s)");
         let config_start = std::time::Instant::now();
         match with_timeout(
             "init_verge_config",
-            std::time::Duration::from_secs(10), // 10秒超时
+            std::time::Duration::from_secs(30), // 从10秒增加到30秒
             init_verge_config(),
         ).await {
             Ok(_) => {
@@ -79,9 +95,11 @@ pub fn resolve_setup_async() {
         
         // 配置验证也移到后台，不阻塞窗口显示
         let _verify_init = AsyncHandler::spawn(|| async {
+            logging!(info, Type::Setup, "[resolve_setup_async] 开始验证配置 (超时: 30秒)");
+            eprintln!("[Core Startup] Starting config verification (timeout: 30s)");
             let verify_start = std::time::Instant::now();
             let verify_result = tokio::time::timeout(
-                std::time::Duration::from_secs(5), // 5秒超时
+                std::time::Duration::from_secs(30), // 从5秒增加到30秒
                 Config::verify_config_initialization()
             ).await;
             
@@ -98,10 +116,12 @@ pub fn resolve_setup_async() {
         
         // 立即显示窗口，不等待任何后台初始化
         // 添加超时保护，避免窗口初始化阻塞启动
+        logging!(info, Type::Setup, "[resolve_setup_async] 开始初始化窗口 (超时: 60秒)");
+        eprintln!("[Core Startup] Starting window initialization (timeout: 60s)");
         let window_start = std::time::Instant::now();
         match with_timeout(
             "init_window",
-            std::time::Duration::from_secs(15), // 15秒超时
+            std::time::Duration::from_secs(60), // 从15秒增加到60秒
             init_window(),
         ).await {
             Ok(_) => {
@@ -117,41 +137,86 @@ pub fn resolve_setup_async() {
         // 不等待后台初始化，让它们在后台完成
         // 这样可以立即显示窗口，大大加快启动速度
 
+        logging!(info, Type::Setup, "[resolve_setup_async] ===== 开始启动核心初始化任务 =====");
+        eprintln!("[Core Startup] ===== Starting core initialization task =====");
+        
         let core_init = AsyncHandler::spawn(|| async {
+            logging!(info, Type::Setup, "[core_init] ===== 核心初始化任务开始执行 =====");
+            eprintln!("[Core Startup] [core_init] Core initialization task started");
+            let task_start = std::time::Instant::now();
+            
             // 添加超时保护
+            logging!(info, Type::Setup, "[core_init] 步骤1: 初始化服务管理器 (超时: 30秒)");
+            eprintln!("[Core Startup] [core_init] Step 1: Initializing service manager (timeout: 30s)");
             match with_timeout(
                 "init_service_manager",
-                std::time::Duration::from_secs(10),
+                std::time::Duration::from_secs(30), // 从10秒增加到30秒
                 init_service_manager(),
             ).await {
-                Ok(_) => {}
+                Ok(_) => {
+                    let elapsed = task_start.elapsed();
+                    logging!(info, Type::Setup, "[core_init] 步骤1完成: 服务管理器初始化成功，耗时: {:?}", elapsed);
+                    eprintln!("[Core Startup] [core_init] Step 1 completed: Service manager initialized, elapsed: {:?}", elapsed);
+                }
                 Err(e) => {
-                    logging!(error, Type::Setup, "服务管理器初始化失败或超时: {}", e);
+                    let elapsed = task_start.elapsed();
+                    logging!(error, Type::Setup, "[core_init] 步骤1失败: 服务管理器初始化失败或超时: {}, 耗时: {:?}", e, elapsed);
+                    eprintln!("[Core Startup] [core_init] Step 1 failed: Service manager initialization failed or timeout: {}, elapsed: {:?}", e, elapsed);
                 }
             }
             
             // init_core_manager 已经有超时保护，但这里再加一层诊断
+            logging!(info, Type::Setup, "[core_init] 步骤2: 初始化核心管理器 (超时: 10分钟)");
+            eprintln!("[Core Startup] [core_init] Step 2: Initializing core manager (timeout: 10 minutes)");
+            let core_manager_start = std::time::Instant::now();
             init_core_manager().await;
+            let core_manager_elapsed = core_manager_start.elapsed();
+            logging!(info, Type::Setup, "[core_init] 步骤2完成: 核心管理器初始化完成，耗时: {:?}", core_manager_elapsed);
+            eprintln!("[Core Startup] [core_init] Step 2 completed: Core manager initialization finished, elapsed: {:?}", core_manager_elapsed);
             
+            logging!(info, Type::Setup, "[core_init] 步骤3: 初始化系统代理 (超时: 15秒)");
+            eprintln!("[Core Startup] [core_init] Step 3: Initializing system proxy (timeout: 15s)");
             match with_timeout(
                 "init_system_proxy",
-                std::time::Duration::from_secs(5),
+                std::time::Duration::from_secs(15), // 从5秒增加到15秒
                 init_system_proxy(),
             ).await {
-                Ok(_) => {}
+                Ok(_) => {
+                    let elapsed = task_start.elapsed();
+                    logging!(info, Type::Setup, "[core_init] 步骤3完成: 系统代理初始化成功，耗时: {:?}", elapsed);
+                    eprintln!("[Core Startup] [core_init] Step 3 completed: System proxy initialized, elapsed: {:?}", elapsed);
+                }
                 Err(e) => {
-                    logging!(error, Type::Setup, "系统代理初始化失败或超时: {}", e);
+                    let elapsed = task_start.elapsed();
+                    logging!(error, Type::Setup, "[core_init] 步骤3失败: 系统代理初始化失败或超时: {}, 耗时: {:?}", e, elapsed);
+                    eprintln!("[Core Startup] [core_init] Step 3 failed: System proxy initialization failed or timeout: {}, elapsed: {:?}", e, elapsed);
                 }
             }
             
+            logging!(info, Type::Setup, "[core_init] 步骤4: 启动系统代理守护进程");
+            eprintln!("[Core Startup] [core_init] Step 4: Starting system proxy guard");
             AsyncHandler::spawn_blocking(init_system_proxy_guard);
+            
+            let total_elapsed = task_start.elapsed();
+            logging!(info, Type::Setup, "[core_init] ===== 核心初始化任务完成，总耗时: {:?} =====", total_elapsed);
+            eprintln!("[Core Startup] [core_init] ===== Core initialization task completed, total elapsed: {:?} =====", total_elapsed);
         });
 
         let tray_init = async {
+            logging!(info, Type::Setup, "[resolve_setup_async] 开始初始化系统托盘");
+            eprintln!("[Core Startup] Starting system tray initialization");
+            let tray_start = std::time::Instant::now();
             init_tray().await;
             refresh_tray_menu().await;
+            let tray_elapsed = tray_start.elapsed();
+            logging!(info, Type::Setup, "[resolve_setup_async] 系统托盘初始化完成，耗时: {:?}", tray_elapsed);
+            eprintln!("[Core Startup] System tray initialization completed, elapsed: {:?}", tray_elapsed);
         };
 
+        logging!(info, Type::Setup, "[resolve_setup_async] ===== 开始并发执行所有初始化任务 =====");
+        eprintln!("[Core Startup] ===== Starting concurrent execution of all initialization tasks =====");
+        let join_start = std::time::Instant::now();
+        
         let _ = futures::join!(
             core_init,
             tray_init,
@@ -160,6 +225,14 @@ pub fn resolve_setup_async() {
             init_auto_lightweight_boot(),
             init_auto_backup(),
         );
+        
+        let join_elapsed = join_start.elapsed();
+        logging!(info, Type::Setup, "[resolve_setup_async] ===== 所有初始化任务完成，总耗时: {:?} =====", join_elapsed);
+        eprintln!("[Core Startup] ===== All initialization tasks completed, total elapsed: {:?} =====", join_elapsed);
+        
+        let total_elapsed = async_flow_start.elapsed();
+        logging!(info, Type::Setup, "[resolve_setup_async] ===== 异步初始化流程完成，总耗时: {:?} =====", total_elapsed);
+        eprintln!("[Core Startup] ===== Async initialization flow completed, total elapsed: {:?} =====", total_elapsed);
     });
 }
 
@@ -284,11 +357,11 @@ pub(super) async fn init_core_manager() {
     eprintln!("[Core Startup] Current running mode: {:?}", current_mode);
     
     // 使用更详细的诊断包装
-    logging!(info, Type::Setup, "[init_core_manager] 调用 CoreManager::global().init()，超时时间: 5分钟");
-    eprintln!("[Core Startup] Calling CoreManager::global().init(), timeout: 5 minutes");
+    logging!(info, Type::Setup, "[init_core_manager] 调用 CoreManager::global().init()，超时时间: 10分钟");
+    eprintln!("[Core Startup] Calling CoreManager::global().init(), timeout: 10 minutes");
     match with_timeout(
         "CoreManager::init",
-        std::time::Duration::from_secs(300), // 5分钟超时
+        std::time::Duration::from_secs(600), // 从5分钟增加到10分钟
         CoreManager::global().init(),
     ).await {
         Ok(Ok(())) => {
