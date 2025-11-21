@@ -52,16 +52,25 @@ impl IProfiles {
     }
 
     pub async fn new() -> Self {
+        eprintln!("[Core Startup] [IProfiles::new] Starting to load profiles.yaml configuration...");
+        let profiles_new_start = std::time::Instant::now();
+        
         let path = match dirs::profiles_path() {
-            Ok(p) => p,
+            Ok(p) => {
+                eprintln!("[Core Startup] [IProfiles::new] Profiles config path: {:?}", p);
+                eprintln!("[Core Startup] [IProfiles::new] File exists: {}", p.exists());
+                p
+            }
             Err(err) => {
+                eprintln!("[Core Startup] [IProfiles::new] Failed to get profiles config path: {}", err);
                 logging!(error, Type::Config, "{err}");
                 return Self::default();
             }
         };
 
-        match help::read_yaml::<Self>(&path).await {
+        let result = match help::read_yaml::<Self>(&path).await {
             Ok(mut profiles) => {
+                eprintln!("[Core Startup] [IProfiles::new] Successfully loaded profiles.yaml");
                 let items = profiles.items.get_or_insert_with(Vec::new);
                 for item in items.iter_mut() {
                     if item.uid.is_none() {
@@ -71,10 +80,17 @@ impl IProfiles {
                 profiles
             }
             Err(err) => {
+                eprintln!("[Core Startup] [IProfiles::new] Failed to read profiles.yaml: {}", err);
+                eprintln!("[Core Startup] [IProfiles::new] Error details: {:#}", err);
+                eprintln!("[Core Startup] [IProfiles::new] Using default configuration");
                 logging!(error, Type::Config, "{err}");
                 Self::default()
             }
-        }
+        };
+        
+        let profiles_new_elapsed = profiles_new_start.elapsed();
+        eprintln!("[Core Startup] [IProfiles::new] Configuration loading completed, elapsed: {:?}", profiles_new_elapsed);
+        result
     }
 
     pub async fn save_file(&self) -> Result<()> {

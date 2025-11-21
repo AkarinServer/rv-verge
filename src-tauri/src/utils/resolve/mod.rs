@@ -35,6 +35,8 @@ pub fn resolve_setup_sync() {
 
 pub fn resolve_setup_async() {
     eprintln!("[Core Startup] ===== resolve_setup_async() called, spawning async task =====");
+    eprintln!("[Core Startup] This function is called from Tauri setup callback");
+    eprintln!("[Core Startup] Spawning async task for initialization...");
     AsyncHandler::spawn(|| async {
         eprintln!("[Core Startup] ===== Async task started executing =====");
         eprintln!("[Core Startup] ===== Async initialization flow started =====");
@@ -47,6 +49,7 @@ pub fn resolve_setup_async() {
         {
             eprintln!("[Core Startup] Step 0: Starting logger system initialization");
             eprintln!("[Core Startup] This step will read Config::verge() to get log settings");
+            eprintln!("[Core Startup] Note: Config::verge().await may block if Config::global() is initializing");
             let logger_start = std::time::Instant::now();
             
             eprintln!("[Core Startup] Calling resolve_setup_logger()...");

@@ -27,6 +27,7 @@ const isRiscV =
 // which doesn't have native bindings for RISC-V. So we use a function to load it conditionally.
 function getReactPlugin(): Plugin {
   if (isRiscV) {
+    console.log("[vite.config.ts] We can't import @vitejs/plugin-react-swc on RISC-V because it will try to load @swc/core");
     console.log("[vite.config.ts] Detected RISC-V architecture, using Babel-based React plugin (@vitejs/plugin-react)");
     console.log(`[vite.config.ts] TARGET_ARCH: ${process.env.TARGET_ARCH}, RUNNER_ARCH: ${process.env.RUNNER_ARCH}, process.arch: ${process.arch}, os.arch(): ${os.arch()}`);
     return react();

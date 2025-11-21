@@ -319,10 +319,16 @@ pub fn run() {
 
             eprintln!("[RV Verge] Setting up resolve handlers...");
             resolve::resolve_setup_handle();
+            eprintln!("[RV Verge] OK: Resolve handlers setup completed");
+            
             eprintln!("[RV Verge] Starting async initialization...");
+            eprintln!("[RV Verge] Calling resolve_setup_async()...");
             resolve::resolve_setup_async();
+            eprintln!("[RV Verge] OK: resolve_setup_async() called (returns immediately, runs in background)");
+            
             eprintln!("[RV Verge] Starting sync initialization...");
             resolve::resolve_setup_sync();
+            eprintln!("[RV Verge] OK: Sync initialization completed");
 
             logging!(info, Type::Setup, "Initialization started");
             eprintln!("[RV Verge] ===== Tauri setup callback completed =====");

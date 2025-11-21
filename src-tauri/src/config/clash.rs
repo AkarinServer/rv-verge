@@ -16,16 +16,23 @@ pub struct IClashTemp(pub Mapping);
 
 impl IClashTemp {
     pub async fn new() -> Self {
+        eprintln!("[Core Startup] [IClashTemp::new] Starting to load config.yaml configuration...");
+        let clash_new_start = std::time::Instant::now();
+        
         let template = Self::template();
         let clash_path_result = dirs::clash_path();
         let map_result = if let Ok(path) = clash_path_result {
+            eprintln!("[Core Startup] [IClashTemp::new] Clash config path: {:?}", path);
+            eprintln!("[Core Startup] [IClashTemp::new] File exists: {}", path.exists());
             help::read_mapping(&path).await
         } else {
+            eprintln!("[Core Startup] [IClashTemp::new] Failed to get clash config path");
             Err(anyhow::anyhow!("Failed to get clash path"))
         };
 
-        match map_result {
+        let result = match map_result {
             Ok(mut map) => {
+                eprintln!("[Core Startup] [IClashTemp::new] Successfully loaded config.yaml");
                 template.0.keys().for_each(|key| {
                     if !map.contains_key(key)
                         && let Some(value) = template.0.get(key)
@@ -42,10 +49,17 @@ impl IClashTemp {
                 Self(Self::guard(map))
             }
             Err(err) => {
+                eprintln!("[Core Startup] [IClashTemp::new] Failed to read config.yaml: {}", err);
+                eprintln!("[Core Startup] [IClashTemp::new] Error details: {:#}", err);
+                eprintln!("[Core Startup] [IClashTemp::new] Using template configuration");
                 logging!(error, Type::Config, "{err}");
                 template
             }
-        }
+        };
+        
+        let clash_new_elapsed = clash_new_start.elapsed();
+        eprintln!("[Core Startup] [IClashTemp::new] Configuration loading completed, elapsed: {:?}", clash_new_elapsed);
+        result
     }
 
     pub fn template() -> Self {

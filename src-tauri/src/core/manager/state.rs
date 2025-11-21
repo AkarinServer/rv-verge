@@ -108,6 +108,54 @@ impl CoreManager {
 
         logging!(info, Type::Core, "[start_core_by_sidecar] 步骤6: 创建 sidecar 命令");
         eprintln!("[Core Startup] Step 6: Creating sidecar command");
+        eprintln!("[Core Startup] Sidecar name: {}", clash_core);
+        
+        // 诊断：检查 Tauri 应用资源目录和 sidecar 文件
+        #[cfg(target_os = "linux")]
+        {
+            use crate::utils::dirs;
+            eprintln!("[Core Startup] Diagnostic: Checking app resources directory for sidecar files...");
+            match dirs::app_resources_dir() {
+                Ok(res_dir) => {
+                    eprintln!("[Core Startup] App resources directory: {:?}", res_dir);
+                    match std::fs::read_dir(&res_dir) {
+                        Ok(entries) => {
+                            let mut found_sidecar = false;
+                            let mut file_count = 0;
+                            for entry in entries.flatten() {
+                                file_count += 1;
+                                let path = entry.path();
+                                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                                if name.contains("mihomo") || name.contains("sidecar") {
+                                    eprintln!("[Core Startup] Found potential sidecar file: {:?}", path);
+                                    found_sidecar = true;
+                                }
+                            }
+                            eprintln!("[Core Startup] Total files in resources directory: {}", file_count);
+                            if !found_sidecar {
+                                eprintln!("[Core Startup] WARNING: No sidecar files found in resources directory");
+                                eprintln!("[Core Startup] WARNING: Tauri sidecar plugin may not find the binary");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[Core Startup] WARNING: Failed to read resources directory: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[Core Startup] WARNING: Failed to get app resources directory: {}", e);
+                }
+            }
+        }
+        
+        // 诊断：检查 Tauri 期望的 sidecar 路径格式
+        eprintln!("[Core Startup] Tauri will look for sidecar with name: {}", clash_core);
+        eprintln!("[Core Startup] Expected sidecar file format: {}-<target-triple>", clash_core);
+        
+        // 诊断：检查当前目标架构
+        eprintln!("[Core Startup] Current target architecture: {}", std::env::consts::ARCH);
+        eprintln!("[Core Startup] Current target OS: {}", std::env::consts::OS);
+        
         let sidecar_cmd = match app_handle.shell().sidecar(clash_core.as_str()) {
             Ok(cmd) => {
                 logging!(info, Type::Core, "[start_core_by_sidecar] Sidecar 命令创建成功");
@@ -121,6 +169,10 @@ impl CoreManager {
                 eprintln!("[Core Startup] Failed to create sidecar command: {}", e);
                 eprintln!("[Core Startup] Error details: {:#}", e);
                 eprintln!("[Core Startup] Possible reason: sidecar executable not found or inaccessible");
+                eprintln!("[Core Startup] Diagnostic: Tauri sidecar plugin could not find the sidecar binary");
+                eprintln!("[Core Startup] Diagnostic: Expected sidecar name: {}", clash_core);
+                eprintln!("[Core Startup] Diagnostic: Tauri looks for sidecar in app resources directory");
+                eprintln!("[Core Startup] Diagnostic: Check if sidecar file was properly packaged during build");
                 return Err(anyhow::anyhow!("Failed to create sidecar command: {}", e));
             }
         };

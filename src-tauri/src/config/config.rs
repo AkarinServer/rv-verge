@@ -26,10 +26,29 @@ impl Config {
         static CONFIG: OnceCell<Config> = OnceCell::const_new();
         CONFIG
             .get_or_init(|| async {
+                eprintln!("[Core Startup] [Config::global] Initializing Config singleton...");
+                eprintln!("[Core Startup] [Config::global] This will call IVerge::new().await, IClashTemp::new().await, IProfiles::new().await");
+                let config_init_start = std::time::Instant::now();
+                
+                eprintln!("[Core Startup] [Config::global] Creating IVerge config...");
+                let verge_config = IVerge::new().await;
+                eprintln!("[Core Startup] [Config::global] IVerge config created");
+                
+                eprintln!("[Core Startup] [Config::global] Creating IClashTemp config...");
+                let clash_config = IClashTemp::new().await;
+                eprintln!("[Core Startup] [Config::global] IClashTemp config created");
+                
+                eprintln!("[Core Startup] [Config::global] Creating IProfiles config...");
+                let profiles_config = IProfiles::new().await;
+                eprintln!("[Core Startup] [Config::global] IProfiles config created");
+                
+                let config_init_elapsed = config_init_start.elapsed();
+                eprintln!("[Core Startup] [Config::global] Config singleton initialization completed, elapsed: {:?}", config_init_elapsed);
+                
                 Self {
-                    clash_config: Draft::new(IClashTemp::new().await),
-                    verge_config: Draft::new(IVerge::new().await),
-                    profiles_config: Draft::new(IProfiles::new().await),
+                    clash_config: Draft::new(clash_config),
+                    verge_config: Draft::new(verge_config),
+                    profiles_config: Draft::new(profiles_config),
                     runtime_config: Draft::new(IRuntime::new()),
                 }
             })

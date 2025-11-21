@@ -359,27 +359,44 @@ impl IVerge {
     }
 
     pub async fn new() -> Self {
-        match dirs::verge_path() {
-            Ok(path) => match help::read_yaml::<Self>(&path).await {
-                Ok(mut config) => {
-                    // compatibility
-                    if let Some(start_page) = config.start_page.clone()
-                        && start_page == "/home"
-                    {
-                        config.start_page = Some(String::from("/"));
+        eprintln!("[Core Startup] [IVerge::new] Starting to load verge.yaml configuration...");
+        let verge_new_start = std::time::Instant::now();
+        
+        let result = match dirs::verge_path() {
+            Ok(path) => {
+                eprintln!("[Core Startup] [IVerge::new] Verge config path: {:?}", path);
+                eprintln!("[Core Startup] [IVerge::new] File exists: {}", path.exists());
+                match help::read_yaml::<Self>(&path).await {
+                    Ok(mut config) => {
+                        eprintln!("[Core Startup] [IVerge::new] Successfully loaded verge.yaml");
+                        // compatibility
+                        if let Some(start_page) = config.start_page.clone()
+                            && start_page == "/home"
+                        {
+                            config.start_page = Some(String::from("/"));
+                        }
+                        config
                     }
-                    config
-                }
-                Err(err) => {
-                    logging!(error, Type::Config, "{err}");
-                    Self::template()
+                    Err(err) => {
+                        eprintln!("[Core Startup] [IVerge::new] Failed to read verge.yaml: {}", err);
+                        eprintln!("[Core Startup] [IVerge::new] Error details: {:#}", err);
+                        eprintln!("[Core Startup] [IVerge::new] Using template configuration");
+                        logging!(error, Type::Config, "{err}");
+                        Self::template()
+                    }
                 }
             },
             Err(err) => {
+                eprintln!("[Core Startup] [IVerge::new] Failed to get verge config path: {}", err);
+                eprintln!("[Core Startup] [IVerge::new] Using template configuration");
                 logging!(error, Type::Config, "{err}");
                 Self::template()
             }
-        }
+        };
+        
+        let verge_new_elapsed = verge_new_start.elapsed();
+        eprintln!("[Core Startup] [IVerge::new] Configuration loading completed, elapsed: {:?}", verge_new_elapsed);
+        result
     }
 
     pub fn template() -> Self {

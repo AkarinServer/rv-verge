@@ -117,7 +117,7 @@ jobs:
             echo "Node.js already installed: $(node --version)"
             echo "npm version: $(npm --version)"
           else
-            echo "Installing Node.js 24.11.0 from GitHub Releases..."
+            echo "Installing Node.js 24.11.0 from Unofficial GitHub Releases for RISCV64... Here thanks gounthar/unofficial-builds"
             NODE_VERSION="24.11.0"
             NODE_ARCH="riscv64"
             NODE_DIST="node-v${NODE_VERSION}-linux-${NODE_ARCH}"
@@ -353,7 +353,21 @@ jobs:
 
       - name: Run prebuild
         run: |
+          echo "Running prebuild for riscv64gc-unknown-linux-gnu..."
           npm run prebuild -- riscv64gc-unknown-linux-gnu || echo "Warning: prebuild failed, continuing..."
+          
+          # Verify sidecar file was downloaded
+          echo "Verifying sidecar file exists..."
+          if [ -f "src-tauri/sidecar/verge-mihomo-riscv64gc-unknown-linux-gnu" ]; then
+            echo "✓ Sidecar file found: src-tauri/sidecar/verge-mihomo-riscv64gc-unknown-linux-gnu"
+            ls -lh "src-tauri/sidecar/verge-mihomo-riscv64gc-unknown-linux-gnu"
+            file "src-tauri/sidecar/verge-mihomo-riscv64gc-unknown-linux-gnu"
+          else
+            echo "✗ ERROR: Sidecar file not found: src-tauri/sidecar/verge-mihomo-riscv64gc-unknown-linux-gnu"
+            echo "Listing sidecar directory:"
+            ls -la src-tauri/sidecar/ 2>/dev/null || echo "Sidecar directory does not exist"
+            exit 1
+          fi
 
       - name: Build Tauri application
         timeout-minutes: 240
@@ -400,6 +414,28 @@ jobs:
           ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release/bundle/ 2>/dev/null || echo "Bundle directory not found"
           # Also check release directory as fallback
           ls -la src-tauri/target/riscv64gc-unknown-linux-gnu/release/ 2>/dev/null || echo "Release directory not found"
+          
+          # Verify sidecar files are included in the bundle
+          echo "Verifying sidecar files in bundle..."
+          RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/fast-release"
+          if [ ! -d "$RELEASE_DIR" ]; then
+            RELEASE_DIR="src-tauri/target/riscv64gc-unknown-linux-gnu/release"
+          fi
+          
+          # Check if sidecar files exist in the build directory
+          echo "Checking for sidecar files in build directory..."
+          find "$RELEASE_DIR" -name "*mihomo*" -o -name "*sidecar*" 2>/dev/null | head -10 || echo "No sidecar files found in build directory"
+          
+          # Check if sidecar files are in the bundle (they should be in the binary directory)
+          if [ -d "$RELEASE_DIR/bundle/deb" ]; then
+            echo "Checking DEB package contents for sidecar files..."
+            DEB_FILE=$(find "$RELEASE_DIR/bundle/deb" -name "*.deb" | head -1)
+            if [ -n "$DEB_FILE" ]; then
+              echo "Found DEB package: $DEB_FILE"
+              # Use dpkg-deb to list contents
+              dpkg-deb -c "$DEB_FILE" 2>/dev/null | grep -i "mihomo\|sidecar" | head -10 || echo "No sidecar files found in DEB package"
+            fi
+          fi
 
       - name: Prepare release files
         id: release_files
